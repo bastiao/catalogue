@@ -1,7 +1,7 @@
 emif-fb
 =======
 
-EMIF Platform - Fingerprint Browser 
+EMIF Platform - Fingerprint Browser
 
 
 
@@ -37,10 +37,10 @@ EMIF Platform - Fingerprint Browser
 
 
 5.  Install and Configure Apache-solr
-        
+
         sudo apt-get -y install solr-tomcat
 
-        Go to folder emif-fb-root/conf/solr/ and copy all the files to the solr default core configuration 
+        Go to folder emif-fb-root/conf/solr/ and copy all the files to the solr default core configuration
 
 
 6.  Install and Configure PostgreSQL
@@ -48,7 +48,7 @@ EMIF Platform - Fingerprint Browser
         1)  sudo apt-get install postgresql
 
         2)  sudo su postgres
-            psql 
+            psql
                 CREATE ROLE user superuser;
                 CREATE USER emif_dev;
                 GRANT user To emif_dev;
@@ -73,7 +73,7 @@ EMIF Platform - Fingerprint Browser
 
 
 10. Install Python package index
-        
+
         pip install psycopg2
         sudo apt-get install libxml-dev
         pip install lxml
@@ -99,8 +99,8 @@ EMIF Platform - Fingerprint Browser
 
 
 14. Go to project folder
-    
-        (emif) C:\...\BioInformatics\emif-fb>   
+
+        (emif) C:\...\BioInformatics\emif-fb>
 
 
 15. Create '~/pgpass' file and insert:
@@ -109,10 +109,10 @@ EMIF Platform - Fingerprint Browser
 
 
 16. Change permission mode of pgpass file
-    
+
         chmod 600 /home/user/.pgpass
 
-    
+
 17. Install requirements.txt
 
         pip install -r requirements.txt --allow-all-external
@@ -132,8 +132,8 @@ EMIF Platform - Fingerprint Browser
         python manage.py loaddata emif\fixtures\emif_questionary_1.yaml
         python manage.py runserver
 
-  
-        
+
+
 18. Run Apache-solr as service
 
 
@@ -190,12 +190,24 @@ EMIF Platform - Fingerprint Browser
         python manage.py runserver 0.0.0.0:8000
 
 
+#### Integrate Sentry
 
+Put in settings.py:
+
+* Sentry url must be specified in settings.py globals, on parameter "SENTRY_URL"
+
+* Also:
+
+```
+RAVEN_CONFIG = {
+    'dsn': 'http://hash@host:port/id',
+}
+```
 
 #### Developers
 
  * Luís A. Bastião Silva <bastiao@ua.pt>
- * Ricardo Ribeiro <ribeiro.r@ua.pt> 
+ * Ricardo Ribeiro <ribeiro.r@ua.pt>
 
 
 #### Lead developer
