@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2014 Ricardo F. Gonçalves Ribeiro and Universidade de Aveiro
-#
-# Authors: Ricardo F. Gonçalves Ribeiro <ribeiro.r@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +17,7 @@
 import csv
 
 from django.shortcuts import render
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect, Http404
 from django.core.urlresolvers import reverse
 from django.db import transaction
 from django.core.urlresolvers import *
@@ -37,15 +35,17 @@ from accounts.models import RestrictedGroup, RestrictedUserDbs, EmifProfile
 
 import hashlib
 
-def qs_data_table(request, template_name='qs_data_table.html'):
-    db_type = int(request.POST.get("db_type"))
-    qset_post = request.POST.getlist("qsets[]")
+from constance import config
+
+def get_matrix_data(db_type, qset_post, user, flat=False):
 
     # generate a mumbo jumbo digest for this combination of parameters, to be used as key for caching purposes
     string_to_be_hashed = "dbtype"+str(db_type)
 
     for post in qset_post:
         string_to_be_hashed+="qs"+post
+
+    string_to_be_hashed += "_hashed_"+str(flat)
 
     hashed = hashlib.sha256(string_to_be_hashed).hexdigest()
 
@@ -70,13 +70,13 @@ def qs_data_table(request, template_name='qs_data_table.html'):
         fingerprints = Fingerprint.objects.filter(questionnaire__id=db_type)
 
         try:
-            eprofile = EmifProfile.objects.get(user=request.user)
+            eprofile = EmifProfile.objects.get(user=user)
 
             if eprofile.restricted == True:
-                hashes = RestrictedGroup.hashes(request.user)
+                hashes = RestrictedGroup.hashes(user)
 
 
-                others = RestrictedUserDbs.objects.filter(user=request.user)
+                others = RestrictedUserDbs.objects.filter(user=user)
 
                 for db in others:
                     hashes.add(db.fingerprint.fingerprint_hash)
@@ -86,13 +86,24 @@ def qs_data_table(request, template_name='qs_data_table.html'):
         except EmifProfile.DoesNotExist:
             print "-- ERROR: Couldn't get emif profile for user"
 
-        (titles, answers) = creatematrixqsets(db_type, fingerprints, qset)
+        (titles, answers) = creatematrixqsets(db_type, fingerprints, qset, flat=flat)
 
         cache.set(hashed, (titles, answers), 720) # 12 hours of cache
+
+    return (hashed, titles, answers)
+
+def qs_data_table(request, template_name='qs_data_table.html'):
+    db_type = int(request.POST.get("db_type"))
+    qset_post = request.POST.getlist("qsets[]")
+
+    (hashed, titles, answers) = get_matrix_data(db_type, qset_post, request.user)
 
     return render(request, template_name, {'request': request,'hash': hashed, 'export_all_answers': True, 'breadcrumb': False, 'collapseall': False, 'geo': False, 'titles': titles, 'answers': answers})
 
 def all_databases_data_table(request, template_name='alldatabases_data_table.html'):
+
+    if not config.datatable:
+        raise Http404
     #dictionary of database types
     databases_types = {}
 
@@ -117,37 +128,7 @@ def export_datatable(request):
     db_type = int(request.POST.get("db_type"))
     qset_post = request.POST.getlist("qsets[]")
 
-    # generate a mumbo jumbo digest for this combination of parameters, to be used as key for caching purposes
-    string_to_be_hashed = "dbtype"+str(db_type)
-
-    for post in qset_post:
-        string_to_be_hashed+="qs"+post
-
-    hashed = hashlib.sha256(string_to_be_hashed).hexdigest()
-
-    titles = None
-    answers = None
-
-    cached = cache.get(hashed)
-
-    if cached != None:
-        #print "cache hit"
-        (titles, answers) = cached
-
-    else :
-        #print "need for cache"
-        qset_int = []
-        for qs in qset_post:
-            qset_int.append(int(qs))
-
-
-        qset = QuestionSet.objects.filter(id__in=qset_int)
-
-        fingerprints = Fingerprint.objects.filter(questionnaire__id=db_type)
-
-        (titles, answers) = creatematrixqsets(db_type, fingerprints, qset)
-
-        cache.set(hashed, (titles, answers), 720) # 12 hours of cache
+    (hashed, titles, answers) = get_matrix_data(db_type, qset_post, request.user, flat=True)
 
     """
     Method to export all databases answers to a csv file

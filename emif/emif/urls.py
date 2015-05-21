@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,9 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-
-
 from django.conf.urls import patterns, include, url
 
 from django.contrib.auth import views as auth_views
@@ -34,7 +28,7 @@ from django.conf import settings
 
 from hitcount.views import update_hit_count_ajax
 
-
+from developer.views import DeveloperIframeView, DeveloperGlobalView
 
 admin.site = AdminSitePlus()
 admin.autodiscover()
@@ -44,9 +38,6 @@ urlpatterns = patterns('',
     # Comments
     url(r'^comments/', include('django.contrib.comments.urls')),
 
-    # Where to go when loggedin (according to Profile)
-    url(r'^wherenext/$', 'emif.views.wherenext'),
-
     # Uncomment the admin/doc line below to enable admin documentation:
     url(r'^admin/doc/', include('django.contrib.admindocs.urls')),
 
@@ -55,7 +46,10 @@ urlpatterns = patterns('',
 
     # Index page
     url(r'^$', 'emif.views.index', name="home"),
+
     url(r'^index$', 'emif.views.index', name="home"),
+
+    url(r'^indexbeta$', 'emif.views.index_beta', name="home_beta"),
 
     url(r'^about$', 'emif.views.about'),
 
@@ -73,7 +67,8 @@ urlpatterns = patterns('',
 
     url(r'^addPost/(?P<questionnaire_id>[0-9]+)/(?P<sortid>[0-9]+)/(?P<saveid>[0-9]+)$', 'fingerprint.views.check_database_add_conditions'),
 
-
+    url(r'^apps/tp/(?P<plugin_hash>[^/]+)$', DeveloperIframeView.as_view(), name='developer-iframe'),
+    url(r'^apps/gp/(?P<plugin_hash>[^/]+)$', DeveloperGlobalView.as_view(), name='developer-global'),
 
     # Database Edit
     url(r'^dbEdit/(?P<fingerprint_id>[^/]+)/(?P<questionnaire_id>[0-9]+)$', 'fingerprint.views.database_edit'),
@@ -185,6 +180,14 @@ urlpatterns = patterns('',
     # Statistics
     url(r'^statistics', include('statistics.urls')),
 
+    # Developer app urls
+    url(r'^developer/', include('developer.urls')),
+
+    # SSO
+    (r'^saml2/', include('djangosaml2.urls')),
+    
+    #questionnaires
+    url(r'questionnaire/', include('questionnaire.urls')),
 )
 
 if settings.DEBUG:

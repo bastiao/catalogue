@@ -1,3 +1,21 @@
+/*
+# -*- coding: utf-8 -*-
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+*/
 /******* All Databases data table specific Javascript ****/
 // Global variable that nows if the checkboxes are all selected or not
 selected_checkboxes = false;
@@ -58,9 +76,9 @@ $(document).ready(function() {
     });
 
     $('#exportdatatable').click(function() {
-        var type_selected = $('#db_type').val();  
+        var type_selected = $('#db_type').val();
         if(type_selected != 0){
-            console.log('SELECTED:'+type_selected);
+            //console.log('SELECTED:'+type_selected);
 
             var selected_options = [];
             $('.qsets').each(function() {
@@ -71,9 +89,9 @@ $(document).ready(function() {
                             selected_options.push($(this).val());
                     });
                 }
-            }); 
+            });
 
-            console.log(selected_options);  
+            //console.log(selected_options);
             var dtform = $('#senddatatable');
             dtform.html($('#senddatatablemodel').html());
             dtform.append('<input type="hidden" name="db_type" value="'+type_selected+'">');
@@ -86,7 +104,7 @@ $(document).ready(function() {
         } else {
             bootbox.alert('Please, choose a database type and questionsets, before trying to export.')
         }
-           
+
     });
 
 });

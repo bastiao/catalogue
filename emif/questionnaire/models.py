@@ -1,3 +1,18 @@
+# -*- coding: utf-8 -*-
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from django.db import models
 from transmeta import TransMeta
 from django.utils.translation import ugettext_lazy as _
@@ -9,8 +24,76 @@ from django.utils import simplejson as json
 from parsers import parse_checks, ParseException
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.dispatch import receiver
+from django.db.models.signals import post_save
+
+import json
 
 _numre = re.compile("(\d+)([a-z]+)", re.I)
+
+class DepQuestion:
+    answers = {}
+    def __init__(self):
+        self.answers = {}
+
+    def add_answer(self, answer, number):
+        if answer not in self.answers:
+            self.answers[answer] = [number]
+        else:
+            self.answers[answer].append(number)
+
+    def lengths(self):
+        lengths = {}
+
+        for key in self.answers:
+            lengths[key] = len(self.answers[key])
+
+        print lengths
+
+        return lengths
+
+class DepList:
+    dep_map = {}
+    question_counts = {}
+
+    def __separateCond(self, dep):
+        depl = dep.split(',')
+
+        if len(depl) == 2:
+            return (depl[0], depl[1])
+
+        return (None, None)
+
+    def __init__(self, questionset):
+        self.dep_map={}
+        self.question_counts = {}
+
+        questions = questionset.questions()
+
+        for question in questions:
+            if question.type != 'comment':
+                dep=questionset.getDependency(question)
+                if dep != None:
+                    (depnumber, answer) = self.__separateCond(dep)
+
+                    if depnumber not in self.dep_map:
+                        self.dep_map[depnumber] = DepQuestion()
+
+                    self.dep_map[depnumber].add_answer(answer, question.number)
+
+        # must do two rounds, because i dont know the full map until i go through them all since this i cant supose dependency order
+        for question in questions:
+            if question.type != 'comment':
+                self.question_counts[question.number] = 1
+
+                if question.number in self.dep_map:
+                    self.question_counts[question.number] = self.dep_map[question.number].lengths()
+
+                else:
+                    self.question_counts[question.number] = 1
+
+    def get(self):
+        return self.question_counts
 
 class Questionnaire(models.Model):
     name = models.CharField(max_length=128)
@@ -116,13 +199,10 @@ class QuestionSet(models.Model):
 
     # Returns the serverside total and filled count for this questionset
     def total_count(self):
-        if not hasattr(self, "__qcache"):
-            self.__qcache = list(Question.objects.filter(questionset=self).order_by('number'))
-            self.__qcache.sort()
+        if not hasattr(self, "__qtotal_count"):
+            self.__qtotal_count = len(Question.objects.filter(questionset=self).exclude(checks__contains='dependent').order_by('number'))
 
-        questions = self.__qcache
-
-        return len(questions);
+        return self.__qtotal_count
 
     def next(self):
         qs = self.questionnaire.questionsets()
@@ -170,6 +250,40 @@ class QuestionSet(models.Model):
 
         return clone
 
+    def dependency_tree(self):
+        dl = DepList(self)
+
+        return dl.get()
+
+        if not hasattr(self, "__questionstreecache"):
+            questions = self.questions()
+
+            dl = DepList(questions)
+
+            self.__questionstreecache = dl.get()
+
+        return self.__questionstreecache
+
+    def getDependency(self, question):
+        checks = ""
+        try:
+            checks = question.checks.strip()
+        except:
+            pass
+
+        # not dependant in anyone
+        if len(checks) == 0:
+            return None
+        else:
+
+            extra = checks.split(" ")
+
+            for ex in extra:
+                if ex.startswith('dependent="'):
+                    return ex[11:-1]
+
+            return None
+
     def findDependantPercentage(self, answers):
         from fingerprint.models import Answer
 
@@ -177,47 +291,30 @@ class QuestionSet(models.Model):
         total = 0
         filled = 0
 
-        def __getDependency(question):
-            checks = ""
-            try:
-                question.checks.strip()
-            except:
-                pass
-
-            # not dependant in anyone
-            if len(checks) == 0:
-                return None
-            else:
-
-                extra = checks.split(" ")
-
-                for ex in extra:
-                    if ex.startswith('dependent="'):
-                        return ex[11:-1]
-
-                return None
-
         def __fills_condition(dep):
             depl = dep.split(',')
 
             if len(depl) == 2:
-                key = None
+                answer = None
                 try:
-                    key = ref_cache[depl[0]]
+                    answer = ref_cache[depl[0]]
                 except:
                     try:
-                        key = answers.get(question__number=depl[0])
-                        ref_cache[depl[0]] = key
+                        answer = answers.get(question__number=depl[0])
+                        ref_cache[depl[0]] = answer
 
                     except Answer.DoesNotExist:
                         return False
 
-                if depl[1].lower() == key.data.lower():
+                if depl[1].lower() == answer.data.lower():
                     return True
 
             return False
 
         def __count(total, filled, question):
+            if question.type == 'comment':
+                return (total, filled)
+
             total+=1
             try:
                 ans = answers.get(question=question)
@@ -229,7 +326,7 @@ class QuestionSet(models.Model):
             return (total, filled)
 
         for question in self.questions():
-            dep = __getDependency(question)
+            dep = self.getDependency(question)
 
             # has dependency
             if dep == None:
@@ -255,7 +352,6 @@ VISIBILITY_CHOICES = (
 )
 ### This models, keeps the permissions for a questionset, relative to a fingerprint
 class QuestionSetPermissions(models.Model):
-
     id = models.AutoField(primary_key=True)
     fingerprint_id = models.CharField(max_length=32)
     qs = models.ForeignKey(QuestionSet)
@@ -268,6 +364,15 @@ class QuestionSetPermissions(models.Model):
 
 class Question(models.Model):
     __metaclass__ = TransMeta
+    VERTICAL = 0
+    HORIZONTAL = 1
+    DROPDOWN = 2
+
+    DISPOSITION_TYPES = (
+        (VERTICAL, 'Vertical'),
+        (HORIZONTAL, 'Horizontal'),
+        (DROPDOWN, 'Dropdown')
+    )
 
     questionset = models.ForeignKey(QuestionSet)
     number = models.CharField(max_length=255, help_text=
@@ -304,6 +409,19 @@ class Question(models.Model):
     tooltip = models.BooleanField(default=False, help_text="If help text appears in a tooltip")
     visible_default = models.BooleanField(u"Comments visible by default", default=False)
     mlt_ignore = models.BooleanField(u"Ignore on More Like This", default=False)
+    disposition = models.IntegerField(default=VERTICAL, choices=DISPOSITION_TYPES)
+
+    metadata = models.TextField(blank=True, null=True)
+
+    def meta(self):
+        if not hasattr(self, "__metadict"):
+            try:
+                self.__metadict = json.loads(self.metadata)
+            except:
+                #print "-- ERROR: Couldn't parse json for question meta"
+                self.__metadict = {}
+
+        return self.__metadict
 
     def questionnaire(self):
         return self.questionset.questionnaire
@@ -399,4 +517,51 @@ class Choice(models.Model):
         return u'(%s) %d. %s' % (self.question.number, self.sortid, self.text)
 
     class Meta:
+        ordering = ('sortid',)
         translate = ('text',)
+
+class QuestionnaireWizard(models.Model):
+    questionnaire = models.ForeignKey(Questionnaire)
+    user = models.ForeignKey(User)
+    removed = models.BooleanField(default=False)
+
+    @staticmethod
+    def all(user=None):
+        tmp = QuestionnaireWizard.objects.filter(removed=False)
+
+        if user != None:
+            tmp=tmp.filter(user=user)
+
+        return tmp
+
+    def remove(self):
+        self.removed=True
+        self.save()
+
+    def interest(self, interested):
+        if interested:
+            prof = self.user.emif_profile
+
+            prof.interests.add(self.questionnaire)
+            prof.save()
+
+        self.remove()
+
+
+@receiver(post_save, sender=Questionnaire)
+def __create_wizards(sender, instance, created, *args, **kwargs):
+    '''This method uses the post_save signal on Questionnaire to generate wizards to existing users
+    '''
+    from accounts.models import EmifProfile
+
+    if created:
+        for user in User.objects.all():
+            try:
+                pf = user.emif_profile
+                intcount = pf.interests.all().count()
+
+                if intcount > 0:
+                    qw = QuestionnaireWizard(questionnaire=instance, user=user)
+                    qw.save()
+            except EmifProfile.DoesNotExist:
+                pass

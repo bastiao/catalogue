@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,11 +18,8 @@
 from django.contrib.auth.models import User
 from django.db import models
 
-from django.db.models.fields import *
-
-
 class FingerprintAPI(models.Model):
-    id = AutoField(primary_key=True)
+    id = models.AutoField(primary_key=True)
     fingerprintID = models.CharField(max_length=255, unique=False, blank=False, null=False)
     user = models.ForeignKey(User, unique=False, blank=False, null=False)
     field = models.TextField()

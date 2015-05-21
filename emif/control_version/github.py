@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,22 +14,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-
-
 from github3 import login
 from control_version.models import *
 from django.shortcuts import render
 from django.conf import settings
 from emif.utils import send_custom_mail
 
-
-"""
-Put this variables in settings.py or local_settings.py
-GITHUB_USERNAME='bastiao'
-GITHUB_PASSWD='GOFUCKYOURSELF'
-GITHUB_ACCOUNT='bioinformatics-ua'
-GITHUB_REPO='emif-fb'
-"""
 
 def feedback_thankyou(request, template_name='feedback_thankyou.html'):
     return render(request, template_name, {'request': request, 'breadcrumb': True})
@@ -60,7 +47,12 @@ def report_bug(request):
                 pass
 
             description = description + "\n\nReported by %s, email: %s with: %s" % (name, from_email, browser)
-            issue.create(title, description)
+            newissue = issue.create(title, description)
+
+            if newissue.number != None:
+                br = BugReport(issue=newissue.number, requester=request.user, report=description)
+
+                br.save()
 
             emails_to_feedback = [from_email]
             for k, v in settings.ADMINS:
@@ -121,7 +113,7 @@ class IssueManager(object):
             print i.title
 
         """
-        return self.gh.iter_repo_issues(settings.GITHUB_ACCOUNT,settings.GITHUB_REPO, state=state_of, labels=labels_of)
+        return self.gh.issues_on(settings.GITHUB_ACCOUNT,settings.GITHUB_REPO, state=state_of, labels=labels_of, number=30)
 
     def list_labels(self):
         # I'm adding this shit statically due to the use case of the EMIF Catalogue
@@ -135,8 +127,8 @@ class IssueManager(object):
         # milestones iterator only returns open milestones when used without state parameter
         # so i join them up myself...
         milestones = []
-        miles_open = repo.iter_milestones()
-        miles_closed = repo.iter_milestones(state='closed')
+        miles_open = repo.milestones()
+        miles_closed = repo.milestones(state='closed')
 
         for mile in miles_closed:
             milestones.append(mile)

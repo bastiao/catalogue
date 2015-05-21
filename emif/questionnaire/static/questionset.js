@@ -1,5 +1,24 @@
+/*
+# -*- coding: utf-8 -*-
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
 var qvalues = new Array(); // used as dictionary
 var qtriggers = new Array();
+
+var depmaps = {};
 
 function dep_check(expr) {
     var exprs = expr.split(",", 2);
@@ -97,7 +116,8 @@ function valchanged(qnum, value, self) {
 
         // We have to get the question
         var the_question = $('#question_' + clean.split('_')[0].replace(/(\.)/g, '')).text().trim();
-        if (value == true) {
+
+        if (value === true) {
 
             //console.log(qnum);
             //console.log(clean.replace('_','. ')+' ('+the_question+')');
@@ -109,7 +129,7 @@ function valchanged(qnum, value, self) {
             //var optional = $('#question_'+just_number.replace(/(\.)/g,'\\.')+"_1_opt").val();
             bool_container.pushWithDelegate('question_nr_' + dirty.substring(0, index) + "_____" + clean + "_____",
                 clean.replace('_', '. ') + ' (' + the_question + ')', dirty.substring(index + 1, dirty.length), 'clearcheck("' + $self.attr('id') + '");');
-        } else if (value == false) {
+        } else if (value === false) {
             var optional = $('#question_' + just_number.replace(/(\.)/g, '') + "_opt").val();
             bool_container.splice('question_nr_' + dirty.substring(0, index) + "_____" + clean + "_____",
                 clean.replace('_', '. ') + ' (' + the_question + ')', dirty.substring(index + 1, dirty.length));
@@ -197,7 +217,7 @@ function setsaveqs(id, fingerprint_id, q_id, mode) {
             advValidator.reload();
 
             var list_invalid = advValidator.validateFormContext(e, self);
-            //console.log(list_invalid);
+            console.log(list_invalid);
 
 
             if (list_invalid.length == 0) {
@@ -338,6 +358,16 @@ function initQsEnv(fingerprint_id, q_id, sortid, mode) {
             questionsets_handle(document.getElementById('qs_' + page).id, fingerprint_id, q_id, mode);
     }
 
+}
+function getPrevSet(){
+    var prev_id = $('.nav-pills .active').prev('[id^="li_qs"]').attr('id');
+    if(prev_id)
+        return prev_id.replace('li_','');
+}
+function getNextSet(){
+    var next_id = $('.nav-pills .active + li').attr('id');
+    if(next_id)
+        return next_id.replace('li_','');
 }
 
 function questionsets_handle(id_questionset, fingerprint_id, q_id, mode) {

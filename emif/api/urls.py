@@ -1,8 +1,5 @@
-#!python
 # -*- coding: utf-8 -*-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,28 +18,8 @@
 from django.conf.urls import patterns, url
 from rest_framework.urlpatterns import format_suffix_patterns
 
-from api.views import SearchView
-from api.views import SearchDatabasesView
-from api.views import EmailCheckView
-from api.views import RemovePermissionsView
-from api.views import PopulationCheckView
-from api.views import GetFileView
-from api.views import DeleteFileView
-from api.views import MetaDataView
-from api.views import StatsView
-from api.views import ValidateView
-from api.views import PublicationsView
-from api.views import PopulationView
-from api.views import NotifyOwnerView
-from api.views import AddPublicLinkView
-from api.views import DeletePublicLinkView
-from api.views import SearchSuggestionsView
-from api.views import NotificationsView
-from api.views import ReadNotificationView
-from api.views import RemoveNotificationView
-from api.views import RequestAnswerView
 
-from api.views import ToggleSubscriptionView
+from api.views import *
 
 from dashboard.api import *
 
@@ -50,10 +27,13 @@ from public.api import *
 
 from statistics.api import *
 
+from questionnaire.api import *
+
 urlpatterns = patterns('api.views',
     url(r'^root/$', 'api_root'),
     url(r'^emailcheck$', EmailCheckView.as_view(), name='emailcheck'),
     url(r'^removePermissions$', RemovePermissionsView.as_view(), name='removepermissions'),
+    url(r'^passOwnership$', PassOwnershipView.as_view(), name='passownership'),
     url(r'^populationcheck$', PopulationCheckView.as_view(), name='populationcheck'),
     url(r'^getfile$', GetFileView.as_view(), name='getfile'),
     url(r'^deletefile$', DeleteFileView.as_view(), name='deletefile'),
@@ -95,13 +75,14 @@ urlpatterns = patterns('api.views',
 
     url(r'^topnavigators$', TopNavigatorsView.as_view(), name='topnavigators'),
 
-
-
-
     url(r'statistics/(?P<fingerprint_schema_id>[^/]+)/(?P<operation>[^/]+)/(?P<ttype>[^/]+)/(?P<ttype2>[^/]+)/$', \
         FingerprintSchemas.as_view(), name='databasesglobal'),
 
+    # questionnaire api services
+    url(r'^wizards$', QuestionnaireWizardView.as_view(), name='wizards'),
 
+    # questionnaire import webservice
+    url(r'^importquestionnaire$', QuestionnaireImportView.as_view(), name='importquestionnaire'),
 
 
 )

@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,8 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-#
 import re
 
 from django.contrib.auth.models import Group
@@ -38,9 +33,13 @@ from accounts.models import Profile
 
 from newsletter.models import Newsletter, Subscription
 
+
+import math
+from djangosaml2.conf import config_settings_loader
+from djangosaml2.utils import available_idps
+
+
 register = template.Library()
-
-
 
 
 @register.filter(name='removeh1')
@@ -62,10 +61,22 @@ def escapedots(value):
 
 
 @register.filter(name='replaceplicas')
+
 @stringfilter
 def replaceplicas(value):
     return value.replace('"',"'")
 
+@register.filter(name='scaleunit')
+def scaleunit(value):
+
+    sizes = ['bytes', 'Kb', 'Mb', 'Gb', 'Tb']
+
+    if (value == 0):
+        return '0 byte'
+
+    i = int(math.floor(math.log(value) / math.log(1024)))
+
+    return "%d %s" % (round(value/ math.pow(1024, i), 2), sizes[i])
 
 
 @register.filter(name='removehs')
@@ -235,7 +246,7 @@ def fingerprints_list():
 
     return results
 
-def fingerprints_list_user(user):
+def fingerprints_list_user(user, use_slugs=False):
 
     interests = user.get_profile().interests.all()
     quests = []
@@ -249,7 +260,10 @@ def fingerprints_list_user(user):
 
     results = {}
     for q in quests:
-        results[q.id] = q.name
+        if use_slugs:
+            results[q.slug] = q.name
+        else:
+            results[q.id] = q.name
 
     return results
 
@@ -313,6 +327,11 @@ def show_fingerprints_for_search(user):
 
     return {'fingerprints':fingerprints_list_user(user)}
 register.inclusion_tag('reusable_blocks/menu_ttags_for_search.html')(show_fingerprints_for_search)
+
+def show_fingerprints_dropdown(user, sort_params):
+
+    return {'fingerprints':fingerprints_list_user(user, use_slugs=True), 'sort_params': sort_params}
+register.inclusion_tag('reusable_blocks/selectfdropdown.html')(show_fingerprints_dropdown)
 
 
 def show_fingerprints_for_statistics():
@@ -430,3 +449,11 @@ def slogan():
 def has_group(user, group_name):
     group = Group.objects.get(name=group_name)
     return True if group in user.groups.all() else False
+
+@register.simple_tag
+def idps_dropdown():
+    return render_to_string('reusable_blocks/idp_dropdowns.html',
+        {
+            "idps": available_idps(config_settings_loader()).items(),
+            "base": settings.BASE_URL
+        })

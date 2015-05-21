@@ -1,8 +1,6 @@
 /*
     # -*- coding: utf-8 -*-
-    # Copyright (C) 2014 Ricardo F. Gonçalves Ribeiro and Universidade de Aveiro
-    #
-    # Authors: Ricardo F. Gonçalves Ribeiro <ribeiro.r@ua.pt>
+    # Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
     #
     # This program is free software: you can redistribute it and/or modify
     # it under the terms of the GNU General Public License as published by
@@ -42,13 +40,15 @@ var LastUsersWidget = function LastUsersWidget(widgetname, width, height, pos_x,
            self.content = '<table class="nomargins table table-bordered">';
             if(data.lastusers){
                 for(var i=0;i<data.lastusers.length;i++){
-                    self.content += '<tr><td style="word-break: break-all;"><small>'+data.lastusers[i] + "</small></td></tr>";
+                    self.content += '<tr><td class="lastuser_tooltip" title="Last login: '+data.lastusers[i]['last_login']+'" style="word-break: break-all;"><small>'+data.lastusers[i]['user'] + "</small></td></tr>";
                 }
             }
 
             LastUsersWidget._super.__refresh.apply(self);
 
             $('.table', $('#'+self.widgetname)).parent().css('padding', '0px');
+
+            $('.lastuser_tooltip', $('#'+self.widgetname)).tooltip({'container': 'body'});
 
           })
         .fail(function() {

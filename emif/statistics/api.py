@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2014 Ricardo F. Gonçalves Ribeiro and Universidade de Aveiro
-#
-# Authors: Ricardo F. Gonçalves Ribeiro <ribeiro.r@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,8 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-
 
 from django.http import HttpResponse
 
@@ -80,7 +76,7 @@ class FingerprintSchemas(APIView):
         if request.user.is_authenticated():
 
             if operation == "all":
-                print fingerprint_schema_id
+
                 stats = FingerprintSchemaStats(Questionnaire.objects.get(id=fingerprint_schema_id))
                 statsList = {}
                 statsList['totalDatabases'] = stats.totalDatabases()
@@ -94,6 +90,15 @@ class FingerprintSchemas(APIView):
                 statsList['avgFilledFingerprints'] = stats.avgFilledFingerprints()
                 statsList['totalDatabaseUsers'] = stats.totalDatabaseUsers()
                 statsList['totalInterested'] = stats.totalInterested()
+
+                statsList['maxHitsFingerprints'] = stats.maxHitsFingerprints()
+                statsList['minHitsFingerprints'] = stats.minHitsFingerprints()
+                statsList['avgHitsFingerprints'] = stats.avgHitsFingerprints()
+                statsList['totalHitsFingerprints'] = stats.totalHitsFingerprints()
+
+                statsList['avgUniqueViewsFingerprints'] = stats.avgUniqueViewsFingerprints()
+                statsList['maxUniqueViewsFingerprints'] = stats.maxUniqueViewsFingerprints()
+                statsList['totalUniqueViewsFingerprints'] = stats.totalUniqueViewsFingerprints()
 
             else:
                 # Not implemented

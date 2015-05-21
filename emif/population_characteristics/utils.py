@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-
-# Copyright (C) 2014 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
 from population_characteristics.charts.chart import *
 import json
 
@@ -51,7 +47,7 @@ class JsonChartReader:
             a.filters = self.__processFilters(axis['filters'])
 
         if 'static_filters' in axis:
-            a.static_filters = axis['static_filters']
+            a.static_filters = self.__processFilters(axis['static_filters'])
 
         if 'categorized' in axis:
             a.categorized = axis['categorized']
@@ -136,17 +132,20 @@ class JsonChartReader:
         return c
 
     def read(self, path):
-        with open(path) as json_data:
-            d = json.loads(json_data.read())
+        try:
+            with open(path) as json_data:
+                d = json.loads(json_data.read())
 
-            sc = SetCharst()
-            sc.charts = []
+                sc = SetCharst()
+                sc.charts = []
 
-            for entry in d['initial_settings']:
-                c = self.__processChart(entry)
+                for entry in d['initial_settings']:
+                    c = self.__processChart(entry)
 
-                sc.charts.append(c)
+                    sc.charts.append(c)
 
-            json_data.close()
+                json_data.close()
 
-            return sc
+                return sc
+        except IOError:
+            return None

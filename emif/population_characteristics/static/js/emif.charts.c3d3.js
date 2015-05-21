@@ -1,7 +1,6 @@
-/**********************************************************************
-# Copyright (C) 2014 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+/*
+# -*- coding: utf-8 -*-
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
+
 ***********************************************************************/
 
 /* Auxliar functions to calculate minimum and max */
@@ -27,6 +26,7 @@ Array.max = function( array ){
 Array.min = function( array ){
     return Math.min.apply( Math, array );
 };
+var old_table;
 
 var debug = null;
 var chart = null;
@@ -83,9 +83,11 @@ function GraphicChartC3D3(divArg, dataArg)
             $.each(actualChart.filters, function(a){
 
               // Translate the fields (for now staticly hard coded for Gender)
+
               if (actualChart.filters[a]['translation']!=null && actualChart.filters[a]['show'])
               {
                 multivalue_stacked = actualChart.filters[a]['value'];
+
                 $.each(actualChart.filters[a]['translation'], function(tr) {
 
                     // Only the simple ones will be translated. ALL is ignored by default
@@ -93,13 +95,12 @@ function GraphicChartC3D3(divArg, dataArg)
                     {
 
                       datasetYs.push([tr]);
-                      multivalue_comp[tr] = datasetYs[datasetYs.length-1];
+                      multivalue_comp[tr] = {'original': datasetYs[datasetYs.length-1]};
 
                     }
 
 
                   });
-
               }
               else if (actualChart.filters[a]['comparable']==true &&
                 actualChart.filters[a]['comparable_values']==null &&
@@ -112,9 +113,9 @@ function GraphicChartC3D3(divArg, dataArg)
                 $.each(actualChart.filters[a]['values'], function(tr) {
                     // Get the list of values
                     datasetYs.push([actualChart.filters[a]['values'][tr]]);
-                    multivalue_comp[actualChart.filters[a]['values'][tr]] = datasetYs[datasetYs.length-1];
+                    multivalue_comp[actualChart.filters[a]['values'][tr]] = {'original': datasetYs[datasetYs.length-1]};
                   });
-
+                  return false;
               };
 
             });
@@ -136,6 +137,7 @@ function GraphicChartC3D3(divArg, dataArg)
       }
 
     var _xValuesMV = {};
+
     objects.values.forEach(function(row){
 
       // Categorized means that the value of X is a string
@@ -153,6 +155,8 @@ function GraphicChartC3D3(divArg, dataArg)
       else if (actualChart.y_axis.multivalue)
       {
 
+        //mapper[row['Value1']] =
+
         var k = 0;
         if (!_xValuesMV[row[actualChart.x_axis['var']]])
         {
@@ -166,7 +170,7 @@ function GraphicChartC3D3(divArg, dataArg)
             var _vv = parseFloat(row[actualChart.y_axis['var']]);
             _vv = +_vv || 0;
 
-            multivalue_comp[row[multivalue_stacked]].push(_vv);
+            multivalue_comp[row[multivalue_stacked]][row[actualChart.x_axis['var']]] = _vv;
             if (datasetYs[row[multivalue_stacked]]!=undefined)
             {
               datasetYs[row[multivalue_stacked]].push(_vv);
@@ -189,6 +193,26 @@ function GraphicChartC3D3(divArg, dataArg)
 
     });
 
+    for(db in multivalue_comp){
+      var this_db = multivalue_comp[db];
+      tmp = this_db['original'];
+      delete this_db['original'];
+
+      if(Object.keys(this_db).length == 0){
+        continue;
+      }
+      for(key in _xValuesMV){
+        var val = this_db[key];
+
+        if(val)
+          tmp.push(val);
+        else
+          tmp.push(0);
+      }
+      multivalue_comp[db] = tmp;
+    }
+
+
   };
 
 
@@ -196,6 +220,8 @@ function GraphicChartC3D3(divArg, dataArg)
   *
   */
   this.draw = function(div, dataset){
+    $('#comment_place').show();
+
     var findMin = function(possibilities, start){
       var pointer = 0;
       var max = possibilities.length;
@@ -263,7 +289,6 @@ function GraphicChartC3D3(divArg, dataArg)
     chartConfigs = {
          padding: {
         left: 100,
-
     },
         bindto: '#pc_chart_place',
         data: {
@@ -281,9 +306,9 @@ function GraphicChartC3D3(divArg, dataArg)
           x: {
             //type: 'categorized',
             label_position : {},
-            tick : { 
+            tick : {
                 culling: true,
-              values : 
+              values :
                 function(domain) {
                       if(memoize == null){
                         if(chartConfigs.axis.x.categories != undefined){
@@ -310,6 +335,11 @@ function GraphicChartC3D3(divArg, dataArg)
         zoom: {
           enabled: true,
 
+        },
+        tooltip: {
+          format: {
+            percentage: true
+          }
         }
 
       };
@@ -334,7 +364,6 @@ function GraphicChartC3D3(divArg, dataArg)
 
     if (actualChart.y_axis.multivalue)
     {
-
       var arrX = datasetX.slice(0);
       var arrYs = datasetYs;
 
@@ -357,7 +386,7 @@ function GraphicChartC3D3(divArg, dataArg)
             x: {
                 //type: 'categorized',
                 label_position : {},
-                tick : { 
+                tick : {
                     culling: true,
                     /*format: function (x) {
                      return x;
@@ -367,7 +396,7 @@ function GraphicChartC3D3(divArg, dataArg)
 
                     return parseInt(x);
                   },*/
-                  values : 
+                  values :
                     function(domain) {
                       if(memoize == null){
                         if(chartConfigs.axis.x.categories != undefined){
@@ -394,6 +423,11 @@ function GraphicChartC3D3(divArg, dataArg)
         zoom: {
           enabled: true,
 
+        },
+        tooltip: {
+          format: {
+            percentage: true
+          }
         }
 
       };
@@ -427,8 +461,8 @@ function GraphicChartC3D3(divArg, dataArg)
               var arrY1 = datasetYs[0].slice(1);
               var arrY2 = datasetYs[1].slice(1);
 
-              chartConfigs.axis.y['max'] = Math.max(Array.max(arrY1), Array.max(arrY2));
-              chartConfigs.axis.y['min'] = 0;
+              //chartConfigs.axis.y['max'] = Math.max(Array.max(arrY1), Array.max(arrY2));
+              //chartConfigs.axis.y['min'] = 0;
             }
         }
 
@@ -479,9 +513,16 @@ function GraphicChartC3D3(divArg, dataArg)
     };
 
 
-    //console.log(chartConfigs);
+    chartConfigs.tooltip.format.value =  function (value, ratio, id) {
+                    var value = d3.round(value, 2);
+                    return value;
+        };
 
-    try{chart = c3.generate(chartConfigs);}
+    chartConfigs.zoom.rescale = true;
+
+    chartConfigs.padding.bottom = 5
+
+    try{chart = c3.generate((chartConfigs));}
     catch(ex)
     {
       console.log(ex);
@@ -496,19 +537,35 @@ function GraphicChartC3D3(divArg, dataArg)
     function toggle(id) {
         chart.toggle(id);
     }
-    var legend = d3.select('#pc_chart_place').insert('div', '.chart').attr('class', 'legend').attr('style','position: absolute; top:0; right: 0;');
+    var legend = d3.select('#pc_chart_place svg').insert('svg', '.chart')
+    .attr('class', 'legend').attr('style','font-size: 10px;').attr('height', '50')
+    .attr('viewBox', '0 0 50 50').attr('preserveAspectRatio', 'xMaxYMin meet');
 
     var columns = chartConfigs.data.columns;
 
     // Clean the legend container.
     $(".color_container").html("");
     // Draw legend manually
-    for (var i=0; i< columns.length;i++) {  
-            var row = columns[i][0];
+    var place = 0;
+
+    for (var i=0; i< columns.length;i++) {
+            var row = columns[i][0].trim();
 
             var drawLegend = function(row){
-              legend.append('span').attr('data-id', row).attr('data-opacity', '1').attr('style', 'cursor: pointer;').html(
-                '<div style="display: inline-block; width: 10px; height: 10px; margin-left: 20px;" class="color_container"></div>&nbsp;'+row);
+              /*legend.append('span').attr('data-id', row).attr('data-opacity', '1').attr('style', 'cursor: pointer;').html(
+                '<div style="display: inline-block; width: 10px; height: 10px; margin-left: 20px;" class="color_container"></div>&nbsp;'+row);*/
+              if(place == 0){
+                place=5.1*(row.length);
+              } else {
+                place=(5.1*(row.length))+30+place;
+              }
+
+              var g = d3.select('.legend').insert('g').attr('transform','translate(-'+place+',0)');
+
+              g.insert('text').attr('font-size',"10").attr('x',"15").attr('y', '9').text(row);
+              g.insert('rect').attr('class', 'color_container').attr('style', "cursor: pointer;")
+              .attr('data-opacity', "1").attr('data-id', row).attr('width', '10').attr('height', '10');
+
             };
 
             if(row.toLowerCase() == 't'){
@@ -522,11 +579,10 @@ function GraphicChartC3D3(divArg, dataArg)
             }
 
     }
-
-    d3.selectAll('.legend span')
+    d3.selectAll('.legend .color_container')
     .each(function () {
         var id = d3.select(this).attr('data-id');
-        var container = $(d3.select(this)[0][0].children[0]);
+        var container = $(this);
 
         var color;
         try {
@@ -534,8 +590,8 @@ function GraphicChartC3D3(divArg, dataArg)
         } catch(err){
           color ="#83bd59";
         }
-
-        container.css('background-color', color);
+        container.data('color', color);
+        container.css('fill', color);
     })
     .on('mouseover', function () {
         var id = d3.select(this).attr('data-id');
@@ -551,14 +607,76 @@ function GraphicChartC3D3(divArg, dataArg)
 
         if(opacity === '1'){
           d3.select(this).attr('style','opacity: 0.5;cursor: pointer;').attr('data-opacity', '0.5');
-
         } else {
           d3.select(this).attr('style','opacity: 1;cursor: pointer;').attr('data-opacity', '1');
         }
+        $(this).css('fill', $(this).data('color'));
 
         chart.toggle(id);
     });
 
+
+    if(!!window.HTMLCanvasElement){
+      $('.exportmychart').show();
+    }
+
+    $('#pc_tabular_place').c3js_to_tabular(chartConfigs, {
+      empty_callback: function(){
+        $('#pc_chart_place').html("<center><h4>There is no data available.</h4></center>");
+        $('#comment_place').hide();
+      },
+      callback: function(){
+        var base = $('#base_link').attr('href');
+
+        old_table = $('#pc_tabular_place table').dataTable();
+
+        var initializeTableTools = function(){
+            var title = db_name + " - " +$('#pctitle').text();
+            title = title.replace(/\//g, "");
+            var tableTools = new $.fn.dataTable.TableTools( old_table, {
+                "aButtons": [
+                {
+                    "sExtends": 'collection',
+                    "sButtonText": '<i class="fa fa-upload"></i> Export &nbsp;<span class="caret" />',
+                    "aButtons": [
+                        {
+                            sExtends: 'csv',
+                            sButtonText: '<i class="fa fa-file-excel-o"></i>&nbsp; CSV',
+                            sFileName: title+'.csv',
+                            sTitle: title,
+                            mColumns: 'visible',
+                            bSelectedOnly: true
+                        },
+                        {
+                            sButtonText: '<i class="fa fa-file-pdf-o"></i>&nbsp; PDF',
+                            sExtends: 'pdf',
+                            mColumns: 'visible',
+                            sTitle: title,
+                            sFileName: title+'.pdf',
+                            bSelectedOnly: true
+                        },
+                        {
+                            sButtonText: '<i class="fa fa-print"></i>&nbsp; Print',
+                            sExtends: 'print',
+                            mColumns: 'visible',
+                            sTitle: title,
+                            bSelectedOnly: true
+                        }
+                    ]
+                }],
+                    "sSwfPath": base+"static/swf/copy_csv_xls_pdf.swf"
+            } );
+
+            $('#export_btns').html(tableTools.fnContainer());
+        }
+        var tlink = $('#tabularlink');
+
+        $('#pc_tabular_place').on( "refresh_tabular", function( e ) {
+          initializeTableTools();
+        });
+
+      }
+    });
    };
 };
 

@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,8 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-
-
 from django.http import HttpResponse
 
 from django.contrib.auth.models import User, Group
@@ -38,7 +34,7 @@ from rest_framework import serializers
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.renderers import JSONRenderer
-from rest_framework.parsers import JSONParser
+from rest_framework.parsers import JSONParser, FileUploadParser, BaseParser
 from django.utils import simplejson
 from django.conf import settings
 
@@ -51,7 +47,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 # Import Search Engine
 
 from searchengine.search_indexes import CoreEngine
-from api.models import *
+from models import *
 
 # Import pubmed object
 from utils.pubmed import PubMedObject
@@ -87,6 +83,10 @@ from public.utils import hasFingerprintPermissions
 
 import urllib2
 import urllib
+import tempfile
+from django.core.files import File as DjangoFile
+from questionnaire.imports import ImportQuestionnaire
+
 
 class JSONResponse(HttpResponse):
     """
@@ -172,15 +172,21 @@ class SearchDatabasesView(APIView):
         offset=0
         sort_field='name'
         sort_order='asc'
+        schema=None
 
         sortFilter = None
 
-        if request.user.is_authenticated():
+        if request.user.is_authenticated() and (
+                request.user.is_staff
+                or request.user.emif_profile.has_group('exporters')
+                or request.user.emif_profile.has_group('developers')
+            ):
             search = request.DATA.get('search', None)
             crows = request.DATA.get('rows', None)
             coffset = request.DATA.get('offset', None)
             csortf = request.DATA.get('sort_field', None)
             csorto = request.DATA.get('sort_order', None)
+            schema = request.DATA.get('schema', None)
 
             if search == None or len(search.strip()) == 0:
                 return Response({'status': 'Authenticated', 'method': 'POST', 'Error': 'Must specify a search text filter'}, status=status.HTTP_400_BAD_REQUEST)
@@ -200,15 +206,18 @@ class SearchDatabasesView(APIView):
             if sort_order != 'asc' and sort_order != 'desc':
                 return Response({'status': 'Authenticated', 'method': 'POST', 'Error': 'Available sort orders are "asc" and "desc"'}, status=status.HTTP_400_BAD_REQUEST)
 
+
             try:
                 sortFilter = sortmap[sort_field] + " " + sort_order
             except:
                 return Response({'status': 'Authenticated', 'method': 'POST', 'Error': 'sort_field can only be name, type_name, id, last_activity or date.'}, status=status.HTTP_400_BAD_REQUEST)
 
-
+            filter_value = ''
+            if schema != None:
+                filter_value = 'AND type_t: "%s"' % escapeSolrArg(schema)
 
             c = CoreEngine()
-            (list_databases,hits) = get_databases_from_solr_v2(request, "text_t:\"" +escapeSolrArg(search)+'"', sort=sortFilter, rows=rows, start=offset)
+            (list_databases,hits) = get_databases_from_solr_v2(request, 'text_t:"%s" %s' % (escapeSolrArg(search), filter_value), sort=sortFilter, rows=rows, start=offset)
 
             return Response({'link': {'status': 'Authenticated', 'method': 'POST'}, 'filters':{'search': search, 'rows': rows,
                 'offset':offset}, 'result': {'count': len(list_databases),
@@ -276,7 +285,53 @@ class RemovePermissionsView(APIView):
             except Fingerprint.DoesNotExist:
                 pass
 
-        return Response(result, status=status.HTTP_403_OK)
+        return Response({'success': False}, status=403)
+
+############################################################
+##### PassOwnership - Web services
+############################################################
+
+
+class PassOwnershipView(APIView):
+    authentication_classes = (SessionAuthentication, BasicAuthentication)
+    permission_classes = (IsAuthenticated,)
+    def post(self, request, *args, **kw):
+        id = request.POST.get('id', -1)
+        hash = request.POST.get('hash')
+        valid = False
+
+        # Verify if it is a valid email
+        if id != None and id != -1 and hash != None:
+            try:
+                finger = Fingerprint.objects.get(fingerprint_hash=hash)
+
+
+                if finger.owner == request.user or request.user.is_staff:
+
+                    username = finger.shared.get(id=id)
+                    old_owner = finger.owner
+
+                    finger.owner = username
+
+                    finger.shared.add(old_owner)
+
+                    finger.shared.remove(username)
+
+                    finger.save()
+
+                    finger.indexFingerprint()
+
+                    new_owner_mess = "%s passed you ownership of database %s" % (old_owner.get_full_name(), finger.findName())
+
+                    sendNotification(timedelta(hours=1), username, old_owner,
+                        "fingerprint/%s/1/"%(finger.fingerprint_hash), new_owner_mess)
+
+                    return Response({'success': True}, status=status.HTTP_200_OK)
+
+            except Fingerprint.DoesNotExist:
+                pass
+
+        return Response({'success': False}, status=403)
 
 ############################################################
 ##### Population Check if exists - Web services
@@ -506,7 +561,7 @@ class MetaDataView(APIView):
     def post(self, request, *args, **kw):
 
         # If authenticated
-        if request.auth:
+        if request.auth or request.user.is_authenticated():
             user = request.user
             data = request.DATA
             result = validate_and_save(user, data)
@@ -766,36 +821,21 @@ class NotifyOwnerView(APIView):
                     else:
                         user_fullname = this_user.username
 
+                    notification_message = "%s has new comments." % (str(fingerprint_name))
 
-                    # Dont add more notifications unless theres been no notification of this type in a hour
-                    notification_message = str(fingerprint_name)+" has new comments, please click here to see them."
-                    old_not = Notification.objects.filter(notification = notification_message, destiny=this_user, removed=False,
-                                                created_date__gt=(timezone.now()-timedelta(hours=1)))
-
-                    #print "EXISTEM ANTIGAS ?"+str(len(old_not))
-
-                    if len(old_not) > 0:
-                        old_not[0].read_date=None
-                        old_not[0].read = False
-                        old_not[0].created_date = timezone.now()
-                        old_not[0].save()
-                    else:
-                        new_notification = Notification(destiny=this_user ,origin=request.user,
-        notification=notification_message,
-        type=Notification.SYSTEM, href="fingerprint/"+fingerprint_id+"/1/discussion/")
-
-                        new_notification.save()
-
-                    send_custom_mail('Emif Catalogue: There\'s a new comment on one of your databases',
-                     render_to_string('emails/new_db_comment.html', {
-                            'fingerprint_id': fingerprint_id,
-                            'fingerprint_name': fingerprint_name,
-                            'owner': user_fullname,
-                            'comment': comment,
-                            'base_url': settings.BASE_URL,
-                            'user_commented': user_commented
-                        }),
-                     settings.DEFAULT_FROM_EMAIL, [this_user.email]);
+                    sendNotification(timedelta(hours=1), this_user, request.user,
+                        "fingerprint/"+fingerprint_id+"/1/discussion/", notification_message,
+                        custom_mail_message=('Emif Catalogue: There\'s a new comment on one of your databases',
+                           render_to_string('emails/new_db_comment.html', {
+                                'fingerprint_id': fingerprint_id,
+                                'fingerprint_name': fingerprint_name,
+                                'owner': user_fullname,
+                                'comment': comment,
+                                'base_url': settings.BASE_URL,
+                                'user_commented': user_commented
+                            })
+                           )
+                        )
 
                     return Response({}, status=status.HTTP_200_OK)
 
@@ -933,6 +973,7 @@ class RequestAnswerView(APIView):
         # first we get the email parameter
         fingerprint_id = request.POST.get('fingerprint_id', '')
         question_id = request.POST.get('question', '')
+        comment = request.POST.get('comment', '')
 
         if request.user.is_authenticated():
             try:
@@ -947,11 +988,12 @@ class RequestAnswerView(APIView):
                                     requester=request.user, removed = False)
 
                     # If this user already request this answer, just update request time
+                    ansrequest.comment=comment
                     ansrequest.save()
 
                 # otherwise we must create the request as a new one
                 except:
-                    ansrequest = AnswerRequest(fingerprint=fingerprint, question=question, requester=request.user)
+                    ansrequest = AnswerRequest(fingerprint=fingerprint, question=question, requester=request.user, comment=comment)
                     ansrequest.save()
 
                 if ansrequest != None:
@@ -1029,9 +1071,14 @@ class SearchSuggestionsView(APIView):
 
             result = []
 
-            if len(phrase) > 0:
 
-                solrlink = 'http://' +settings.SOLR_HOST+ ':'+ settings.SOLR_PORT+settings.SOLR_PATH+ '/suggestions/select?q=query_autocomplete:('+urllib.quote(phrase.replace('"',''))+')&fq=user_id:'+str(request.user.id)+'&wt=json'
+            phrase = urllib.quote(phrase.replace('"','').replace(':', '\:')).strip()
+
+            if len(phrase) > 0:
+                solrlink = 'http://' +settings.SOLR_HOST+ ':' \
+                +settings.SOLR_PORT+settings.SOLR_PATH \
+                +'/suggestions/select?q=query_autocomplete:("'+phrase+'")&fq=user_id:'+str(request.user.id)+'&wt=json'
+
 
                 facets = json.load(urllib2.urlopen(solrlink))['facet_counts']['facet_fields']['query']
 
@@ -1054,16 +1101,16 @@ def validate_fingerprint(user, fingerprintID):
     :param user:
     :param fingerprintID:
     """
+    try:
+        fp = Fingerprint.valid().get(fingerprint_hash=fingerprintID)
 
-    result = False
-    c = CoreEngine()
-    results = c.search_fingerprint('user_t:' + '"' + user.username + '"')
+        if user in fp.unique_users():
+            return True
 
-    for r in results:
-        if fingerprintID == r['id']:
-            result = True
-            break
-    return result
+    except Fingerprint.DoesNotExist:
+        pass
+
+    return False
 
 
 def validate_and_save(user, data):
@@ -1082,15 +1129,19 @@ def validate_and_save(user, data):
         # Verify if fingerprint belongs to user
         if validate_fingerprint(user, fingerprintID):
             if 'values' in data.keys():
-                for f in data['values']:
+                dvalues = data['values']
+                if isinstance(dvalues, basestring):
+                    dvalues = json.loads(dvalues)
+
+                for f in dvalues:
                     # Check if field already exists
                     if FingerprintAPI.objects.filter(fingerprintID=fingerprintID, field=f):
                         try:
-                            fp = FingerprintAPI.objects.get(fingerprintID=fingerprintID, field=f)
-                            if str(fp.value) != str(data['values'][f]):
+                            fp = FingerprintAPI.objects.filter(fingerprintID=fingerprintID, field=f)[0]
+                            if str(fp.value) != str(dvalues[f]):
                                 # Update value
-                                fp.value += ' ' + data['values'][f]
-                                fields_text = data['values'][f]
+                                fp.value += ' ' + dvalues[f]
+                                fields_text = dvalues[f]
                                 fp.save()
                                 result[f] = "Updated successfully"
                             else:
@@ -1102,9 +1153,9 @@ def validate_and_save(user, data):
                     else:
                         try:
                             fingerprint = FingerprintAPI(fingerprintID=fingerprintID, field=f,
-                                                         value=data['values'][f], user=user)
+                                                         value=dvalues[f], user=user)
                             # Create new field-value
-                            fields_text += ' ' + data['values'][f]
+                            fields_text += ' ' + dvalues[f]
                             fingerprint.save()
                             result[f] = "Created successfully"
                         except:
@@ -1122,7 +1173,7 @@ def validate_and_save(user, data):
         result['error'] = "No fingerprintID detected"
 
 
-    c = CoreEngine()
+    '''c = CoreEngine()
     results = c.search_fingerprint("id:" + fingerprintID)
     _aux = None
     for r in results:
@@ -1133,6 +1184,7 @@ def validate_and_save(user, data):
     if (_aux!=None):
         _aux['text_t']  = _aux['text_t'] + fields_text
         c.index_fingerprint_as_json(_aux)
+    '''
 
     return result
 
@@ -1160,3 +1212,56 @@ def validate_and_get(user, data):
         result['error'] = "No fingerprintID detected"
 
     return result
+
+
+############################################################
+##### New Questionnaire Types - Web service
+############################################################
+class BinaryParser(BaseParser):
+    """
+      Binary file parser.
+    """
+    media_type = '*/*'
+
+    def parse(self, stream, media_type=None, parser_context=None):
+        """
+            Returns a django file object from a stream-like binary object
+        """
+        print "PARSE BINARY"
+        tmp = tempfile.NamedTemporaryFile()
+
+        for chunk in iter((lambda:stream.read(2048)),''):
+            tmp.write(chunk)
+
+        return DjangoFile(tmp)
+class QuestionnaireImportView(APIView):
+    authentication_classes = (TokenAuthentication, SessionAuthentication, BasicAuthentication,)
+    permission_classes = (IsAuthenticated,)
+    parser_classes = (BinaryParser,)
+
+    @transaction.commit_on_success
+    def put(self, request):
+        # If authenticated
+        if request.auth or request.user.is_authenticated():
+            user = request.user
+            result = {}
+
+            if user.is_superuser or user.groups.filter(name='importers').exists():
+
+                iq = ImportQuestionnaire.factory('excel', request.DATA)
+                iq.import_questionnaire()
+
+                result['status'] = 'authenticated'
+                result['method'] = 'POST'
+                result['user'] = str(user)
+            else:
+                result['status'] = 'forbidden'
+                result['method'] = 'POST'
+                result['user'] = str(user)
+
+        # NOT authenticated
+        else:
+            result = {'status': 'NOT authenticated', 'method': 'POST'}
+
+        response = Response(result, status=status.HTTP_200_OK)
+        return response

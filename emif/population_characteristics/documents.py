@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-
-# Copyright (C) 2014 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,8 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-
 import json
 
 from django.http import HttpResponse
@@ -58,6 +53,12 @@ from public.utils import hasFingerprintPermissions
 from accounts.models import EmifProfile
 
 from django.core.exceptions import PermissionDenied
+
+
+from developer.models import Plugin, PluginVersion
+
+from django.http import Http404
+
 
 def document_form_view_upload(request, fingerprint_id, template_name='documents_upload_form.html'):
     """Store the files at the backend
@@ -105,7 +106,9 @@ def document_form_view_upload(request, fingerprint_id, template_name='documents_
     data_jerboa = pc.submit_new_revision(request.user, fingerprint_id, revision, path_file)
 
 
-    aggregation.apply_async([fingerprint_id, data_jerboa])
+    #aggregation.apply_async([fingerprint_id, data_jerboa])
+    aggregation(fingerprint_id, data_jerboa)
+
     response = JSONResponse(data, mimetype=response_mimetype(request))
     response['Content-Disposition'] = 'inline; filename=files.json'
     return response
@@ -154,8 +157,20 @@ def document_form_view(request, runcode, qs, activetab='summary', readOnly=False
     template_name='documents_upload_form.html'):
 
     h = None
+
     if "query" in request.session and "highlight_results" in request.session:
         h = request.session["highlight_results"]
+
+    # GET fingerprint primary key (for comments)
+    fingerprint = None
+
+    try:
+        fingerprint = Fingerprint.objects.get(fingerprint_hash=runcode)
+        fingerprint_pk = fingerprint.id
+    except:
+        fingerprint_pk = 0
+        raise Http404
+
     qsets, name, db_owners, fingerprint_ttype = createqsets(runcode, highlights=h)
 
     if fingerprint_ttype == "":
@@ -165,9 +180,9 @@ def document_form_view(request, runcode, qs, activetab='summary', readOnly=False
         if (not request.user.is_anonymous()):
             eprofile = EmifProfile.objects.get(user=request.user)
 
-        if eprofile.restricted == True:
-            if not eprofile.has_permission(runcode):
-                raise PermissionDenied
+            if eprofile.restricted == True:
+                if not eprofile.has_permission(runcode):
+                    raise PermissionDenied
 
 
     except EmifProfile.DoesNotExist:
@@ -176,8 +191,6 @@ def document_form_view(request, runcode, qs, activetab='summary', readOnly=False
 
     apiinfo = json.dumps(get_api_info(runcode))
     owner_fingerprint = False
-
-    #print request.user.username
 
     for owner in db_owners.split(" "):
         #print request.user.username
@@ -204,14 +217,6 @@ def document_form_view(request, runcode, qs, activetab='summary', readOnly=False
         isAdvanced = False
 
     qsets = attachPermissions(runcode, qsets)
-    # GET fingerprint primary key (for comments)
-    fingerprint = None
-
-    try:
-        fingerprint = Fingerprint.objects.get(fingerprint_hash=runcode)
-        fingerprint_pk = fingerprint.id
-    except:
-        fingerprint_pk = 0
 
     jerboa_files = Characteristic.objects.filter(fingerprint_id=runcode).order_by('-latest_date')
 
@@ -249,6 +254,8 @@ def document_form_view(request, runcode, qs, activetab='summary', readOnly=False
     except FingerprintSubscription.DoesNotExist:
         pass
 
+    plugins = PluginVersion.all_valid(type=Plugin.DATABASE)
+
     return render(request, template_name,
         {'request': request, 'qsets': qsets, 'export_bd_answers': True,
         'apiinfo': apiinfo, 'fingerprint_id': runcode,
@@ -274,6 +281,7 @@ def document_form_view(request, runcode, qs, activetab='summary', readOnly=False
                     'public_key': public_key,
                     'hits': hits,
                     'subscription': subscription,
+                    'plugins': plugins
                     })
 
 

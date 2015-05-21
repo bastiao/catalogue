@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
 import csv
 from pprint import pprint
 
@@ -33,6 +29,7 @@ from questionnaire.models import *
 from questionnaire.parsers import *
 from questionnaire.views import *
 from questionnaire.models import *
+
 from searchengine.search_indexes import CoreEngine
 from searchengine.models import Slugs
 import searchengine.search_indexes
@@ -43,6 +40,7 @@ from emif.models import *
 
 from fingerprint.services import *
 from fingerprint.models import *
+from fingerprint.listings import get_databases_from_solr
 
 from api.models import *
 
@@ -101,9 +99,12 @@ def index(request, template_name='index_new.html'):
         if referal != None:
             return HttpResponseRedirect(settings.BASE_URL + referal)
         else:
-            return HttpResponseRedirect(settings.BASE_URL + 'wherenext')
+            return HttpResponseRedirect(reverse ('dashboard.views.dashboard'))
     else:
         return render(request, template_name, {'request': request, 'referal': referal})
+
+def index_beta(request, template_name='index_beta.html'):
+    return index(request, template_name=template_name)
 
 def about(request, template_name='about.html'):
     return render(request, template_name, {'request': request, 'breadcrumb': True})
@@ -340,8 +341,6 @@ def sharedb_activation(request, activation_code, template_name="sharedb_invited.
 
     return activate_user(activation_code, request.user, context = request, template_name=template_name)
 
-def clean_str_exp(s):
-    return s.replace("\n", "|").replace(";", ",").replace("\t", "    ").replace("\r","").replace("^M","")
 
 def export_all_answers(request):
     """
@@ -387,23 +386,3 @@ def save_slug(slugName, desc):
     slugsAux.slug1 = slugName
     slugsAux.description = desc
     slugsAux.save()
-
-# Redirect user after login. Rules:
-# - settings value should be represented by "REDIRECT_" plus the profile.name in uppercase
-# and with out spaces. Ex: REDIRECT_DATACUSTODIAN - for profile.name="Data Custodian"
-@login_required
-def wherenext(request):
-    try:
-        emifprofile = request.user.get_profile()
-        if emifprofile.profiles.count():
-            for profile in emifprofile.profiles.all():
-                redirect = getattr(settings, "REDIRECT_" + profile.name.upper().strip().replace(" ", ""),
-                    'fingerprint.listings.all_databases_user')
-                return HttpResponseRedirect(reverse(redirect))
-
-        interests = emifprofile.interests.all()
-        if interests:
-            return HttpResponseRedirect(reverse('fingerprint.listings.all_databases_user'))
-    except:
-        logging.warn("User has no emifprofile nor interests")
-        return HttpResponseRedirect(reverse ('fingerprint.listings.all_databases'))

@@ -1,6 +1,24 @@
+# -*- coding: utf-8 -*-
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from django.http import HttpResponseRedirect
 from django.conf import settings
+from django.core.urlresolvers import reverse
 from re import compile
+
+from accounts.models import EmifProfile
 
 EXEMPT_URLS = None
 
@@ -34,3 +52,26 @@ class LoginRequiredMiddleware:
             path = request.path_info.lstrip('/')
             if not any(m.match(path) for m in EXEMPT_URLS):
                 return HttpResponseRedirect(settings.LOGIN_URL+'?ref='+path)
+
+class ProfileRequiredMiddleware:
+    """
+    Middleware that requires a user to have a profile, if the user is logged and doesnt
+    have a emifprofile with interests, we always redirect to the profile edit page.
+    """
+    def process_request(self, request):
+        assert hasattr(request, 'user'), "The Profile Required middleware\
+ requires authentication middleware to be installed. Edit your\
+ MIDDLEWARE_CLASSES setting to insert\
+ 'django.contrib.auth.middlware.AuthenticationMiddleware'. If that doesn't\
+ work, ensure your TEMPLATE_CONTEXT_PROCESSORS setting includes\
+ 'django.core.context_processors.auth'."
+        if request.user.is_authenticated():
+
+            pf = request.user.emif_profile
+            intcount = pf.interests.all().count()
+
+            path = request.path
+            rev = reverse('prof_edit')
+
+            if intcount == 0 and '/api' not in path and path != rev:
+                return HttpResponseRedirect(rev)

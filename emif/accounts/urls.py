@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2014 Ricardo F. Gonçalves Ribeiro and Universidade de Aveiro
-#
-# Authors: Ricardo F. Gonçalves Ribeiro <ribeiro.r@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,7 +24,7 @@ urlpatterns = patterns('',
     url(r'^signup/$',
         signup,
         {'signup_form': SignupFormExtra,
-         'success_url': settings.BASE_URL + 'wherenext'},
+         'success_url': settings.BASE_URL + 'dashboard'},
         name='userena_signup'),
 
     url(r'^signup/complete/$',
@@ -50,7 +48,7 @@ urlpatterns = patterns('',
         name='userena_signout'),
 
     # Edit Profile
-    url(r'^profile_edit/$', 'accounts.views.profile_edit'),
+    url(r'^profile_edit/$', 'accounts.views.profile_edit', name='prof_edit'),
 
     # Reset password
     url(r'^password/reset/$',

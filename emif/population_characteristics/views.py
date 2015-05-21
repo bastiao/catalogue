@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2014 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,14 +13,12 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-
 from django.shortcuts import render, render_to_response
 from .services import *
 from .response import JSONResponse, response_mimetype
 from .comments import *
 from .serialize import serialize
-from .comparison import * 
+from .comparison import *
 
 from population_characteristics.models import *
 
@@ -36,6 +32,8 @@ from django.http import *
 from dateutil.tz import tzutc
 
 from public.utils import hasFingerprintPermissions
+
+from fingerprint.models import Fingerprint
 
 UTC = tzutc()
 
@@ -69,13 +67,13 @@ def jerboa_list_values(request, var, row, fingerprint_id, revision, template_nam
         for i in myRq:
             if i == 'publickey':
                 continue
-                
+
             filters[i[8:-3]] = myRq[i]
 
-        #print filters    
-    
+        #print filters
 
-    pc = PopulationCharacteristic(None)
+
+    pc = PopulationCharacteristic(Fingerprint.objects.get(fingerprint_hash=fingerprint_id).questionnaire.id)
     values = pc.get_variables(var, row, fingerprint_id, revision, filters=filters)
     data = {'values': values}
     response = JSONResponse(data, mimetype="application/json")
@@ -84,7 +82,7 @@ def jerboa_list_values(request, var, row, fingerprint_id, revision, template_nam
 
 
 def comments(request, fingerprint_id=None, chart_id=None, comment_id=None):
-    
+
     if request.method=="POST":
         # Add new comment
 
@@ -94,16 +92,16 @@ def comments(request, fingerprint_id=None, chart_id=None, comment_id=None):
         # Extract chart_id
         chart_id = request.POST["pc_chart_comment_id"]
 
-        # Title and Description 
+        # Title and Description
         title = request.POST["pc_chart_comment_name"]
         description = request.POST["pc_chart_comment_description"]
 
-        # Now have the values, send it to the comment manager 
+        # Now have the values, send it to the comment manager
         cm = CommentManager(fingerprint_id)
         c = cm.comment(chart_id, title, description, request.user)
 
         status = True
-        data = {'comments': status, 't_title' : c.title, "description": 
+        data = {'comments': status, 't_title' : c.title, "description":
         c.description, "id": c.pk, "latest_date": serialize_date(c.latest_date)}
         response = JSONResponse(data, mimetype="application/json")
         response['Content-Disposition'] = 'inline; filename=files.json'
@@ -113,7 +111,7 @@ def comments(request, fingerprint_id=None, chart_id=None, comment_id=None):
         cm = CommentManager(fingerprint_id)
         comments = cm.get_list_comments(fingerprint_id, chart_id)
         lst_return = []
-        for c in comments: 
+        for c in comments:
 
             data = {'t_title' : c.title, "description": c.description, "id": c.pk, "latest_date": serialize_date(c.latest_date)}
             lst_return.append(data)
@@ -128,11 +126,11 @@ def comments(request, fingerprint_id=None, chart_id=None, comment_id=None):
         response = JSONResponse({"sucess": True}, mimetype="application/json")
         response['Content-Disposition'] = 'inline; filename=files.json'
         return response
-        
+
     elif request.method=="UPDATE":
         pass
-    
-    
+
+
     # Return bad requests
     return HttpResponseBadRequest()
 
@@ -143,7 +141,14 @@ def filters(request, var, fingerprint_id, template_name='documents_upload_form.h
     if not hasFingerprintPermissions(request, fingerprint_id):
         return HttpResponse("Access forbidden",status=403)
 
-    pc = PopulationCharacteristic(None)
+    qid = None
+    if fingerprint_id != 'COMPARE':
+        try:
+            qid = Fingerprint.objects.get(fingerprint_hash=fingerprint_id).questionnaire.id
+        except Fingerprint.DoesNotExist:
+            pass
+
+    pc = PopulationCharacteristic(qid)
     values = pc.filters(var, fingerprint_id)
     _values = []
     for v in values:
@@ -155,7 +160,7 @@ def filters(request, var, fingerprint_id, template_name='documents_upload_form.h
 
 def generic_filter(request, param, template_name='documents_upload_form.html'):
 
-    pc = PopulationCharacteristic(None)
+    pc = PopulationCharacteristic(Fingerprint.objects.get(fingerprint_hash=fingerprint_id).questionnaire.id)
     values = pc.generic_filter(param)
     data = {'values': values}
     response = JSONResponse(data, mimetype=response_mimetype(request))
@@ -168,7 +173,7 @@ def get_settings(request, runcode):
 
     if (runcode=="COMPARE/" or runcode == "COMPARE"):
         return get_compare_settings(request)
-    pc = PopulationCharacteristic(None)
+    pc = PopulationCharacteristic(type=Fingerprint.objects.get(fingerprint_hash=runcode).questionnaire.id)
     values = pc.get_settings()
     data = {'conf': values.to_JSON()}
 
@@ -183,9 +188,9 @@ def list_jerboa_files(request, fingerprint):
 
     # List the Jerboa files for a particular fingerprint
     jerboa_files = Characteristic.objects.filter(fingerprint_id=fingerprint)
-    _data = []    
+    _data = []
     for f in jerboa_files:
-        _doc = {'name': f.name, 
+        _doc = {'name': f.name,
                 'comments': f.description,
                 'revision': f.revision,
                 'file_name': f.file_name,

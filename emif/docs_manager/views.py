@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2014 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,7 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-
 from django.shortcuts import render, render_to_response
 from docs_manager.services import *
 from population_characteristics.response import JSONResponse, response_mimetype
@@ -58,15 +55,12 @@ def get_revision():
     r.replace("-","")
     return r
 
-    
-def upload_document(request, fingerprint_id, template_name='documents_upload_form.html'):
-    """Store the files at the backend 
-    """
 
+def upload_document_aux(request, fingerprint_id):
     # compute revision
     revision = get_revision()
 
-    # Create the backend to store the file 
+    # Create the backend to store the file
     fh = FileSystemHandleFile()
     g_fh = HandleFile(fh)
 
@@ -74,15 +68,18 @@ def upload_document(request, fingerprint_id, template_name='documents_upload_for
     # Run it for all the sent files (apply the persistence storage)
     path_file = None
     file_name = None
+
+    print request.FILES
+
     if request.FILES:
         for name, f in request.FILES.items():
-            # Handle file 
+            # Handle file
             path_file = g_fh.handle_file(f, revision=revision)
-            file_name = f.name 
-            # Serialize the response 
+            file_name = f.name
+            # Serialize the response
             files.append(serialize(f))
 
-    
+
     data = {'files': files}
 
     # Store the metadata in the database
@@ -96,6 +93,14 @@ def upload_document(request, fingerprint_id, template_name='documents_upload_for
     fd.description = request.POST['pc_comments']
     fd.save()
 
+    return data
+
+def upload_document(request, fingerprint_id, template_name='documents_upload_form.html'):
+    """Store the files at the backend
+    """
+
+    data = upload_document_aux(request, fingerprint_id)
+
     response = JSONResponse(data, mimetype=response_mimetype(request))
     response['Content-Disposition'] = 'inline; filename=files.json'
     return response
@@ -103,18 +108,14 @@ def upload_document(request, fingerprint_id, template_name='documents_upload_for
 def upload_file(request, fingerprint_id, template_name='documents_upload_form.html'):
     """ Upload files from Jerboa
     """
-    # TODO: for now it is only calling the documents 
+    # TODO: for now it is only calling the documents
     return upload_document(request, fingerprint_id, template_name='documents_upload_form.html')
 
 
-def list_fingerprint_files(request, fingerprint):
-
-    if not hasFingerprintPermissions(request, fingerprint):
-        return HttpResponse("Access forbidden",status=403)
-
+def list_fingerprint_files_aux(request, fingerprint):
     # List the Jerboa files for a particular fingerprint
     jerboa_files = FingerprintDocuments.objects.filter(
-            fingerprint_id=fingerprint, 
+            fingerprint_id=fingerprint,
             removed=False
         )
 
@@ -127,10 +128,10 @@ def list_fingerprint_files(request, fingerprint):
 
     #print file_records
 
-    _data = []    
+    _data = []
 
     for f in file_records:
-        _doc = {'name': f.name, 
+        _doc = {'name': f.name,
                 'comments': f.description,
                 'revision': f.revision,
                 'file_name': f.file_name,
@@ -140,7 +141,16 @@ def list_fingerprint_files(request, fingerprint):
                 }
         _data.append(_doc)
 
-    data = {'conf': _data}
+    return _data
+
+
+def list_fingerprint_files(request, fingerprint):
+
+    if not hasFingerprintPermissions(request, fingerprint):
+        return HttpResponse("Access forbidden",status=403)
+
+    data = {'conf': list_fingerprint_files_aux(request, fingerprint)}
+
     response = JSONResponse(data, mimetype=response_mimetype(request))
     response['Content-Disposition'] = 'inline; filename=files.json'
     return response

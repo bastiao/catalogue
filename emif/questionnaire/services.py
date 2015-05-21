@@ -1,3 +1,18 @@
+# -*- coding: utf-8 -*-
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseRedirect
 from django.core.urlresolvers import reverse
@@ -11,14 +26,35 @@ from questionnaire.models import QuestionSet, Question
 from fingerprint.models import Answer, Fingerprint
 
 from emif.utils import QuestionGroup, ordered_dict, Tag, clean_value
-from questionnaire import Fingerprint_Summary
+from questionnaire import Fingerprint_Summary, Fingerprint_Flat
 
 from fingerprint.services import *
 from fingerprint.models import *
 
+def processFlatQuestion(list, question):
+
+    if len(question.choices()) > 0:
+        for choice in question.choices():
+            choice_t = question.number+'.'+question.text+': '+choice.text
+            list.append(choice_t)
+            list.append(choice_t+' (Comment)')
+    else:
+        list.append(question.number+'.' +question.text)
+
+def processFlatAnswer(list, answer):
+    question = answer.question
+    if len(question.choices()) > 0:
+        flatten = Fingerprint_Flat[question.type](question, answer.data)
+        list.extend(flatten)
+    else:
+        list.append([Fingerprint_Summary[question.type](answer.data), question.type])
+
+    #list.append([Fingerprint_Flat[question.type](question, answer.data), question.type])
+    pass
+
 # since createqset estructure isnt tippically made to be used in a row, i decided to implement it
 # separated since the purpose is different, and this way we try to reduce at a maximum the number of repeated procedures
-def creatematrixqsets(db_type, fingerprints, qsets):
+def creatematrixqsets(db_type, fingerprints, qsets, flat=False):
     ans = []
 
     # questions stay in memory, are the same for all fingerprints
@@ -34,7 +70,11 @@ def creatematrixqsets(db_type, fingerprints, qsets):
         for question in questions:
             if question.slug_fk.slug1 == "database_name":
                 name_question = question
-            q_list.append(question.text)
+
+            if flat:
+                processFlatQuestion(q_list, question)
+            else:
+                q_list.append(question.number+'.'+question.text)
 
     for fingerprint in fingerprints:
         answers = Answer.objects.filter(fingerprint_id=fingerprint)
@@ -47,7 +87,10 @@ def creatematrixqsets(db_type, fingerprints, qsets):
 
 
                 if question.type in Fingerprint_Summary:
-                    a_list.append([Fingerprint_Summary[question.type](answer.data), question.type])
+                    if flat:
+                        processFlatAnswer(a_list, answer)
+                    else:
+                        a_list.append([Fingerprint_Summary[question.type](answer.data), question.type])
                 else:
                     a_list.append([answer.data, question.type])
             except Answer.DoesNotExist:
@@ -212,6 +255,7 @@ def handle_qset(fingerprint, clean, qsets, qset, answers, fingerprint_ttype, rHi
         t.number = question.number
         t.ttype = question.type
         t.lastChange = None
+        t.meta = question.meta()
         question_group.list_ordered_tags.append(t)
 
     qsets[qset.text] = question_group

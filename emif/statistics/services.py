@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2014 Ricardo F. Gonçalves Ribeiro and Universidade de Aveiro
-#
-# Authors: Ricardo F. Gonçalves Ribeiro <ribeiro.r@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,14 +13,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
 
+import sys
 
 from fingerprint.models import *
 from django.db.models import Avg, Count, Sum, Min, Max
 from accounts.models import *
 
-
+from hitcount.models import Hit, HitCount
 class FingerprintSchemaStats(object):
 
 
@@ -32,7 +30,7 @@ class FingerprintSchemaStats(object):
         """
 
         self.fingerprint_schema = fingerprint_schema
-
+        self.calculatUniqueViews()
 
     def totalDatabases(self):
 
@@ -47,19 +45,19 @@ class FingerprintSchemaStats(object):
 
     def totalDatabaseShared(self):
         try:
-            return Fingerprint.objects.filter(\
+            return Fingerprint.valid().filter(\
                 questionnaire=self.fingerprint_schema).annotate(\
                 num_shared=Count('shared')).aggregate(Sum('num_shared'))['num_shared__sum']
         except:
             return 0
     def avgDatabaseShared(self):
-        return round(Fingerprint.objects.filter(\
+        return round(Fingerprint.valid().filter(\
             questionnaire=self.fingerprint_schema).annotate(\
             num_shared=Count('shared')).aggregate(Avg('num_shared'))['num_shared__avg'],2)
 
 
     def maxDatabaseShared(self):
-        return Fingerprint.objects.filter(\
+        return Fingerprint.valid().filter(\
             questionnaire=self.fingerprint_schema).annotate(\
             num_shared=Count('shared')).aggregate(Max('num_shared'))['num_shared__max']
 
@@ -75,17 +73,17 @@ class FingerprintSchemaStats(object):
 
 
     def maxFilledFingerprints(self):
-        return round(Fingerprint.objects.filter(\
+        return round(Fingerprint.valid().filter(\
             questionnaire=self.fingerprint_schema).aggregate(Max('fill'))['fill__max'],2)
 
 
     def minFilledFingerprints(self):
-        return Fingerprint.objects.filter(\
+        return Fingerprint.valid().filter(\
             questionnaire=self.fingerprint_schema).aggregate(Min('fill'))['fill__min']
 
 
     def avgFilledFingerprints(self):
-        return round(Fingerprint.objects.filter(\
+        return round(Fingerprint.valid().filter(\
             questionnaire=self.fingerprint_schema).aggregate(Avg('fill'))['fill__avg'], 2)
 
 
@@ -100,6 +98,69 @@ class FingerprintSchemaStats(object):
         EmifProfile.objects.filter(interests=qq).count()
 
 
+
+    def maxHitsFingerprints(self):
+        return round(Fingerprint.valid().filter(\
+            questionnaire=self.fingerprint_schema).aggregate(Max('hits'))['hits__max'],2)
+
+
+    def minHitsFingerprints(self):
+        return Fingerprint.valid().filter(\
+            questionnaire=self.fingerprint_schema).aggregate(Min('hits'))['hits__min']
+
+
+    def avgHitsFingerprints(self):
+        return round(Fingerprint.valid().filter(\
+            questionnaire=self.fingerprint_schema).aggregate(Avg('hits'))['hits__avg'], 2)
+
+    def totalHitsFingerprints(self):
+        return round(Fingerprint.valid().filter(\
+            questionnaire=self.fingerprint_schema).aggregate(Sum('hits'))['hits__sum'], 2)
+
+    def calculatUniqueViews(self):
+
+        most_hit = HitCount.objects.all()
+
+        i=0
+        counts = 0
+        mmax = 0
+        mmin = sys.maxint
+        self.counts = counts
+        self.mmax = mmax
+        self.aavg = 0
+
+        for hit in most_hit:
+            try:
+                this_fingerprint = Fingerprint.valid().get(id=hit.object_pk)
+                if this_fingerprint.questionnaire != self.fingerprint_schema:
+                    continue
+                i = i + 1
+                counts += hit.hits
+                if (hit.hits>mmax):
+                    mmax = hit.hits
+                if (hit.hits<mmin):
+                    mmin = hit.hits
+            except:
+                pass
+        self.counts = counts
+        self.mmax = mmax
+        self.aavg = counts/i
+
+        return (i, self.counts, self.aavg, self.mmax, )
+
+
+
+
+    def maxUniqueViewsFingerprints(self):
+        return self.mmax
+
+
+    def avgUniqueViewsFingerprints(self):
+        return self.aavg
+
+    def totalUniqueViewsFingerprints(self):
+        return self.counts
+
 class FingerprintStats(object):
 
     def __init__(self, fingerprint):
@@ -109,3 +170,5 @@ class FingerprintStats(object):
         pass
 
 # AdvancedQuery.objects.filter(qid=qq).annotate(Count('user')).count()
+
+# QuestionSetCompletion.objects.filter(fingerprint__questionnaire=qq).values('questionset').annotate(fill_avg=Avg('fill'))

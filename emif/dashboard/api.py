@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2014 Ricardo F. Gonçalves Ribeiro and Universidade de Aveiro
-#
-# Authors: Ricardo F. Gonçalves Ribeiro <ribeiro.r@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,8 +14,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-
-
 from django.http import HttpResponse
 
 from django.contrib.auth.models import User, Group
@@ -53,7 +49,7 @@ import datetime
 
 from questionnaire import Processors, QuestionProcessors, Fingerprint_Summary
 
-from django.db.models import Count
+from django.db.models import Count, Q
 
 from accounts.models import NavigationHistory, RestrictedUserDbs, RestrictedGroup, EmifProfile
 
@@ -195,7 +191,7 @@ class LastUsersView(APIView):
             users = User.objects.all().order_by('-last_login')[:10]
 
             for user in users:
-                last_users.append(user.get_full_name())
+                last_users.append({'user': user.get_full_name(), 'last_login': user.last_login.strftime("%Y-%m-%d %H:%M:%S")})
 
             response = Response({'lastusers': last_users}, status=status.HTTP_200_OK)
 
@@ -313,22 +309,20 @@ class FeedView(APIView):
 
         if request.user.is_authenticated():
 
-            modifications = FingerprintHead.objects.filter(fingerprint_id__owner=request.user, fingerprint_id__removed = False)
-
-            modifications = modifications | FingerprintHead.objects.filter(fingerprint_id__shared=request.user, fingerprint_id__removed = False)
-
-
             # get from subscriptions too
-            subs = FingerprintSubscription.objects.filter(user=request.user, removed=False)
+            subs = FingerprintSubscription.objects.filter(user=request.user, removed=False).values_list('fingerprint__id', flat=True)
 
-            for sub in subs:
-                modifications = modifications | FingerprintHead.objects.filter(fingerprint_id=sub.fingerprint, fingerprint_id__removed = False)
-
-            modifications = modifications.order_by("-date")
+            modifications = FingerprintHead.objects.filter(
+                (
+                Q(fingerprint_id__id__in=subs)
+                | Q(fingerprint_id__owner=request.user)
+                | Q(fingerprint_id__shared=request.user)
+                ),
+                fingerprint_id__removed = False).distinct().order_by("-date")
 
             feed = []
 
-            modifications = modifications[:50]
+            modifications = modifications[:30]
 
             aggregate = []
             previous = None

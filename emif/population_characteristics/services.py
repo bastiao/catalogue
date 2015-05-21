@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
 
 from emif.settings import jerboa_collection, jerboa_aggregation_collection
 from pymongo.errors import OperationFailure
@@ -31,9 +28,10 @@ from .charts.rule_matcher import *
 class PopulationCharacteristic(object):
     """PopulationCharacteristic: This class controls the Jerboa File
     """
-    def __init__(self, arg=None):
+    def __init__(self, arg=None, type=None):
 
         self.arg = arg
+        self.type = type
 
 
     def last_activity(self):
@@ -74,7 +72,7 @@ class PopulationCharacteristic(object):
         #pdb.set_trace()
         vars_that_should_exists = ['Count']
 
-        mrules = RuleMatcher()
+        mrules = RuleMatcher(type=Fingerprint.objects.get(fingerprint_hash=fingerprint_id).questionnaire.id)
         __filters = mrules.get_filter(var)
         c1 = mrules.get_chart(var)
 
@@ -211,6 +209,8 @@ class PopulationCharacteristic(object):
             #print _filter.value
             #print dict_query
             if comp:
+                print dict_query
+                print 'values.' + _filter.value
                 values =  jerboa_aggregation_collection.find( dict_query ).distinct('values.' + _filter.value )#
             else:
                 values =  jerboa_collection.find( dict_query ).distinct('values.' + _filter.value )#
@@ -256,6 +256,8 @@ class PopulationCharacteristic(object):
         values = sorted(values)
 
         _filter.values = values
+
+
         return filters
         return values
 
@@ -267,4 +269,4 @@ class PopulationCharacteristic(object):
 
     def get_settings(self):
         cc = ConfCharts()
-        return cc.get_main_settings()
+        return cc.get_main_settings(type=self.type)

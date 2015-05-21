@@ -1,7 +1,6 @@
 /**********************************************************************
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# -*- coding: utf-8 -*-
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,7 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
+
 ***********************************************************************/
 
 function PCDraw(actualChart,chartType, e)
@@ -32,9 +31,9 @@ function PCDraw(actualChart,chartType, e)
       {
         var pc = new PCAPI("population/compare/values");
       }
-        
-      
-      
+
+
+
       $("#pcBarContent").populationChartsBar2('init', pc,this.actualChart.title.fixed_title,
         fingerprintID);
 
@@ -43,7 +42,6 @@ function PCDraw(actualChart,chartType, e)
 
     };
     this.draw = function(filters) {
-
 
       if (PAGE_TYPE==PC_NORMAL)
       {
@@ -54,28 +52,24 @@ function PCDraw(actualChart,chartType, e)
         var PC = new PCAPI("population/compare/values");
       }
 
-      
+
       fingerprintID = getFingerprintID();
       revision = getRevision();
-      
-      
+
+
       var valuesFromGraph = null;
-      
+
       if (filters!==null)
       {
 
         tfilter = new TransformFilter(filters);
         filters = tfilter.transform();
-        
+
         if (PAGE_TYPE==PC_COMPARE)
         {
-          
-          
-          filters['fingerprint_ids'] = $("#fingerprints_store").text();  
-          
-          
+          filters['fingerprint_ids'] = fingerprint_store;
         }
-        valuesFromGraph = PC.getValuesRowWithFilters(this.actualChart.title.fixed_title, 
+        valuesFromGraph = PC.getValuesRowWithFilters(this.actualChart.title.fixed_title,
           this.actualChart.y_axis['var'],fingerprintID, revision, filters );
       }
       if (PAGE_TYPE==PC_COMPARE)
@@ -89,10 +83,10 @@ function PCDraw(actualChart,chartType, e)
 
         $.each(filters, function (data){
           var fV = filters[data];
-          
+
           if (translations.hasOwnProperty(filters[data]))
           {
-            
+
               fV = translations[filters[data]];
           }
           if (fV=="Total") fV = "";
@@ -116,20 +110,20 @@ function PCDraw(actualChart,chartType, e)
 
         if(gender_values != undefined){
           valuefilt += handleFilters(gender_values);
-        }      
-    
+        }
+
       var pc_chart_place = $("#pc_chart_place");
       pc_chart_place.html('');
       pc_chart_place.graphicChart('init');
       pc_chart_place.graphicChart('drawBarChart', valuesFromGraph,valuesFromGraph,valuesFromGraph);
 
-      
+
       var pcBarContentRoot = $("#pcBarContentRoot");
 
       pcBarContentRoot.removeClass("hidden");
       pcBarContentRoot.addClass("show");
 
-      
+
       var actual_chart = this.actualChart;
 
       $("#pctitle").html("<h2>"+ actual_chart.title.fixed_title + valuefilt +"</h2>");
@@ -137,24 +131,27 @@ function PCDraw(actualChart,chartType, e)
         $("#pchint").html("<center><h4>"+ actual_chart.hint +"</h4></center>");
       else
         $("#pchint").html("<center><h4></h4></center>");
-      if (this.e != null ) 
+
+      $('#pc_tabular_place').trigger('refresh_tabular');
+
+      if (this.e != null )
       {
           var firstChild = $(this.e.target.firstChild);
 
-          if (firstChild.hasClass('icon-ok')) 
+          if (firstChild.hasClass('icon-ok'))
           {
-            firstChild.removeClass('icon-ok') 
+            firstChild.removeClass('icon-ok')
           }
           else
           {
-            firstChild.addClass('icon-ok') 
+            firstChild.addClass('icon-ok')
           }
       }
-      
+
     };
 
     this.refresh = function(filters) {
-        
+
         this.draw(filters);
     };
 

@@ -1,4 +1,21 @@
 {% extends 'base.html' %}
+{% comment %}
+# -*- coding: utf-8 -*-
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+{% endcomment %}
 {% load url from future %}
 {% load extra_tags %}
 {% load django_bootstrap_breadcrumbs %}
@@ -19,7 +36,9 @@
     <link rel="stylesheet" href="{{ STATIC_URL }}css/pc.css">
 
     <link rel="stylesheet" href="{{ STATIC_URL }}css/vendor/bootstrap-tagsinput.css" />
+    <link rel="stylesheet" href="{{ STATIC_URL }}css/dataTables.tableTools.css">
 
+    <link rel="stylesheet" href="{{ STATIC_URL }}css/dataTables.bootstrap.css">
 
     <style type="text/css">
 
@@ -56,6 +75,16 @@
 {% endblock %}
 
 {% block headextra %}
+<script src="{{ STATIC_URL}}js/vendor/FileSaver.js"></script>
+<script src="{{ STATIC_URL}}js/vendor/rgbcolor.js"></script>
+<script src="{{ STATIC_URL}}js/vendor/StackBlur.js"></script>
+<script src="{{ STATIC_URL}}js/vendor/canvg.js"></script>
+<script src="{{ STATIC_URL}}js/vendor/jspdf.js"></script>
+<script src="{{ STATIC_URL}}js/vendor/jspdf.plugin.addimage.js"></script>
+<script src="{{ STATIC_URL}}js/vendor/zlib.js"></script>
+<script src="{{ STATIC_URL}}js/vendor/png.js"></script>
+<script src="{{ STATIC_URL}}js/vendor/jspdf.plugin.png_support.js"></script>
+
 
 <script src="{{ STATIC_URL}}js/vendor/taskqueuer.js"></script>
 <script src="{{ STATIC_URL}}js/vendor/jquery.expander.min.js"></script>
@@ -117,6 +146,18 @@
 <script src="{{ STATIC_URL }}js/vendor/bootstrap-tagsinput.js"></script>
 <script src="{{ STATIC_URL}}js/emif.public.js"></script>
 
+<script src="{{ STATIC_URL}}js/emif.public.js"></script>
+
+<script src="{{ STATIC_URL}}js/jquery.dataTables.js"></script>
+<script src="{{ STATIC_URL}}js/dataTables.tableTools.js"></script>
+<script src="{{ STATIC_URL}}js/dataTables.bootstrap.js"></script>
+
+<script src="{{ STATIC_URL}}js/dataTables.bootstrap.js"></script>
+
+<script src="{{ STATIC_URL}}js/jquery.tabmanager.js"></script>
+<script src="{{ STATIC_URL}}js/widgets/widget.plug_shell.js"></script>
+
+
 {% endblock %}
 {% block breadcrumbs %}
 
@@ -140,6 +181,10 @@
 
 {% endblock %}
 
+{% block title %}
+{{ block.super }} - {{breadcrumb_name}}
+{% endblock %}
+
 {% block toolbar %}
 {% include "reusable_blocks/menu_toolbar.html" with collapse=collapseall %}
 {% endblock %}
@@ -150,28 +195,41 @@
 
 <div style="margin-left: 0px;" class="span12">
     <div class="row-fluid">
-        <div class="tabbable">
-            <ul class="nav nav-tabs">
+        <div id="tab-plug" class="tabbable">
+            <ul id="summarynav" data-clamp=".tabbable" data-offset-top="500px" class="nav nav-tabs">
                 <li class="{%if activetab == 'summary'%}active{%endif%}">
                     <a href="#metadata" data-toggle="tab"><i class="icon-list"></i>&nbsp; Fingerprint</a>
                 </li>
+                {% if config.population_characteristics %}
                 <li class="{%if activetab == 'pc'%}active{%endif%}">
                     <a href="#populationcharacteristics" data-toggle="tab"><i class="icon-signal"></i>&nbsp; Population Characteristics</a>
                 </li>
+                {% endif %}
+
+                {% if config.documents %}
                 <li  class="{%if activetab == 'docs'%}active{%endif%}">
                     <a href="#documents" data-toggle="tab"><i class="icon-folder-close"></i>&nbsp; Documents</a>
                 </li>
+                {% endif %}
 
+                {% if config.literature %}
                 <li class="{%if activetab == 'literature'%}active{%endif%}">
                     <a href="#literature" data-toggle="tab"><i class="icon-book"></i>&nbsp; Literature</a>
                 </li>
+                {% endif %}
 
+                {% if config.extra_information %}
                 <li  class="{%if activetab == 'extra'%}active{%endif%}">
                     <a href="#apiinfo" data-toggle="tab"><i class="icon-download-alt"></i> &nbsp; Extra Information</a>
                 </li>
+                {% endif %}
 
+                {% if config.discussion %}
                 <li  class="{%if activetab == 'discussion'%}active{%endif%}">
                     <a href="#discussion" data-toggle="tab"><i class="fa fa-comment"></i> &nbsp; Discussion</a>
+                </li>
+                {% endif %}
+
             </ul>
             <div style="margin-bottom: 50px;" class="tab-content">
                 <div class="tab-pane {%if activetab == 'summary'%}active{%endif%}" id="metadata">
@@ -203,25 +261,29 @@
 
 
                 </div>
+            {% if config.population_characteristics %}
+
             <div class="tab-pane {%if activetab == 'pc'%}active{%endif%}" id="populationcharacteristics" >
 
               {% include "population_characteristics.html" %}
 
           </div>
+          {% endif %}
 
-          <div class="tab-pane {%if activetab == 'docs'%}active{%endif%}" id="documents">
+        {% if config.documents %}
+        <div class="tab-pane {%if activetab == 'docs'%}active{%endif%}" id="documents">
 
             {% include "documents.html" %}
         </div>
+        {% endif %}
 
-
-
+        {% if config.literature %}
         <div class="tab-pane {%if activetab == 'literature'%}active{%endif%}" id="literature">
             <h4 class="loadingsection pull-center">Loading...</h4>
 
         </div>
-
-
+        {% endif %}
+        {% if config.extra_information %}
         <div class="tab-pane {%if activetab == 'extra'%}active{%endif%}" id="apiinfo">
             <div>
                 <a id="btn_pivot_table" class="btn pull-right hidden" href="">Pivot table</a>
@@ -236,6 +298,8 @@
             </div>
             <div class="span8"></div>
         </div>
+        {% endif %}
+        {% if config.discussion %}
         <div class="tab-pane {%if activetab == 'discussion'%}active{%endif%}" id="discussion">
             <div class="span8 offset2">
                 <div id="commentInserted" class="alert alert-success" style="display:none;">
@@ -292,6 +356,7 @@
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 </div>
@@ -356,6 +421,7 @@
 
     <script src="{{ STATIC_URL}}js/vendor/patternrecognizer.js"></script>
     <!--[if gte IE 9]><!-->
+    <script src="{{ STATIC_URL}}js/emif.c3js.tabular.js"></script>
     <script src="{{ STATIC_URL}}js/emif.charts.c3d3.js"></script>
     <script src="{{ STATIC_URL}}js/emif.charts.d3.js"></script>
 
@@ -382,7 +448,7 @@ function load_questionnary(){
 console.log("Creating questionnary set containers (so they are in order)");
         pushQsets();
 
-        //var threadpool = new ThreadPool(20);
+        //var threadpool = new TaskQueuer(20);
         //parts_missing = {{qsets|length}};
 
         var priority=1;
@@ -409,6 +475,7 @@ console.log( "Loading questionnary by parts, we have {{qsets|length}} sets");
 //    $('#show_hide_button').fadeIn();
 //});
 }
+var db_name = '{{breadcrumb_name}}';
 $(function(){
     var csrf_token = '{{ csrf_token }}';
     {% get_hit_count_javascript for fingerprint %}
@@ -420,6 +487,10 @@ $(function(){
     {% if isAdvanced %}
     initAdvSearchPlugin('{{request.session.serialization_query}}', '{{request.session.query_type}}', '{{request.session.query_id}}');
     {% endif %}
+
+    if('{{activetab}}' == 'pc'){
+        $('.graphTypes:first').click();
+    }
 
 });
 
@@ -443,5 +514,36 @@ function pushQsets(){
     {% endfor %}
     $('#set_container').append(containers.join(''));
 }
+        $(function(){
+        arr_len = {{plugins|length}};
+
+        {% for version in plugins %}
+            {% if not version.is_remote %}
+
+                sandbox('{{version.plugin.slug}}',
+                    function(callback){
+                        var confs, plugin;
+
+                        {{version.path|safe}}
+
+                        if(callback) callback(confs, plugin);
+                    });
+            {% else %}
+                    $.ajax({
+                        url: '{{version.path|safe}}',
+                        method: 'GET',
+                        crossDomain: true,
+                        contentType: 'application/x-www-form-urlencoded; charset=UTF-8'
+                    })
+                        .done(function(data){
+                            sandbox('{{version.plugin.slug}}', data);
+
+                        })
+                        .fail(function(data){
+                            console.log("We couldn't obtain the remote plugin from url: '{{version.path|safe}}'");
+                        });
+            {%endif%}
+        {% endfor %}
+        });
 {% endblock %}
 </script>

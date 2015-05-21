@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright (C) 2013 Luís A. Bastião Silva and Universidade de Aveiro
-#
-# Authors: Luís A. Bastião Silva <bastiao@ua.pt>
+# Copyright (C) 2014 Universidade de Aveiro, DETI/IEETA, Bioinformatics Group - http://bioinformatics.ua.pt/
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,8 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-
 # Django settings for emif project.
 import os.path
 
@@ -24,32 +20,63 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
+from os import path
+from saml2 import saml
+import saml2
 
+
+# well i need to do this trick to be able to refere above project root so i can have config files outside the project
+BASEDIR = os.path.abspath(os.path.join(path.dirname(path.abspath(__file__)), '../../'))
+
+print BASEDIR
 
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 
 SITE_NAME = "EMIF Catalogue"
 
+GLOBALS = {
+    'BRAND': "EMIF Catalogue",
+    # url based upon STATIC_URL
+    'BRAND_LOGO': "img/emif_logo_trans.png",
+    'COPYRIGHT': "© EMIF Catalogue",
+    'FOOTER_EXTRA': """
+                    <!-- EXTRA HTML FOOTER CODE HERE -->
+                    <small id="supportability">This website is optimised to Safari, Chrome, Firefox, Opera and IE9+.
+                    <!--It runs in IE7-IE8, but it has low performance and no enhanced features.--></small>
+                   """,
+    'SENTRY_URL': ''
+
+}
+# Header and Footer Settings
+
+
 #BASE_URL = '/emif-dev/'
 # Note: When changing this to something not /, all is automatically changed on the links (except for links inside css files)
 # for this files we must change it manually (or serve them as dinamic files), this problem only ocurrs on IE
 # so if changing to something that not /, we should also change on file /static/css/bootstrap_ie_compatibility.css all relative # paths. This is necessary because i cant use django template variables inside a considered static file.
 BASE_URL = '/'
-VERSION = '0.3.1'
-VERSION_DATE = '2014.Feb.08'
+VERSION = '1.2'
+VERSION_DATE = '2015.May.13 - 01:35UTC'
 PROJECT_DIR_ROOT = '/projects/emif-dev/'
+
+XMLSEC_BIN = '/usr/bin/xmlsec1'
+IDP_SERVICES = [
+    path.join(BASEDIR, 'confs/sso/idps/openidp.xml'),
+    path.join(BASEDIR, 'confs/sso/idps/testshib.xml')
+]
 
 if DEBUG:
     PROJECT_DIR_ROOT = "./"
     MIDDLE_DIR = ""
+    IDP_URL = "http://localhost:8000/"
 else:
     MIDDLE_DIR = "/emif/"
+    IDP_URL = BASE_URL
 
 ADMINS = (
     ('Luis A. Bastiao Silva', 'bastiao@ua.pt'),
     ('José Luis Oliveira', 'jlo@ua.pt'),
-    ('Tiago Godinho', 'tmgodinho@ua.pt'),
     ('Ricardo Ribeiro', 'ribeiro.r@ua.pt'),
 )
 
@@ -69,7 +96,10 @@ TEMPLATE_CONTEXT_PROCESSORS = (
     "django.contrib.messages.context_processors.messages",
     "emif.context_processors.debug",
     "emif.context_processors.baseurl",
-    "emif.context_processors.profiles_processor"
+    "emif.context_processors.profiles_processor",
+    'constance.context_processors.config',
+    "emif.context_processors.globals",
+    "emif.context_processors.thirdparty",
 )
 
 MANAGERS = ADMINS
@@ -175,6 +205,7 @@ STATICFILES_DIRS = (
     os.path.abspath(PROJECT_DIR_ROOT + MIDDLE_DIR + 'public/static'),
     os.path.abspath(PROJECT_DIR_ROOT + MIDDLE_DIR + 'accounts/static'),
     os.path.abspath(PROJECT_DIR_ROOT + MIDDLE_DIR + 'dashboard/static'),
+    os.path.abspath(PROJECT_DIR_ROOT + MIDDLE_DIR + 'developer/static'),
 )
 
 # List of finder classes that know how to find static files in
@@ -211,9 +242,10 @@ MIDDLEWARE_CLASSES = (
     # Uncomment the next line for simple clickjacking protection:
     # 'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'emif.middleware.LoginRequiredMiddleware',
+    'emif.middleware.ProfileRequiredMiddleware',
     'emif.interceptor.NavigationInterceptor',
-    'johnny.middleware.LocalStoreClearMiddleware',
-    'johnny.middleware.QueryCacheMiddleware',
+    #'johnny.middleware.LocalStoreClearMiddleware',
+    #'johnny.middleware.QueryCacheMiddleware',
 )
 
 ROOT_URLCONF = 'emif.urls'
@@ -237,6 +269,8 @@ TEMPLATE_DIRS = (
 
     os.path.abspath(PROJECT_DIR_ROOT + MIDDLE_DIR + 'notifications/templates'),
     os.path.abspath(PROJECT_DIR_ROOT + MIDDLE_DIR + 'accounts/templates'),
+    os.path.abspath(PROJECT_DIR_ROOT + MIDDLE_DIR + 'developer/templates'),
+
 )
 
 INSTALLED_APPS = (
@@ -279,6 +313,7 @@ INSTALLED_APPS = (
     'emif',
 
     'searchengine',
+    "developer",
     'api',
     'fingerprint',
     'control_version',
@@ -320,7 +355,30 @@ INSTALLED_APPS = (
     "compressor",
 
     "raven.contrib.django.raven_compat",
+
+    # django-constance
+    'constance.backends.database',
+    "constance",
+
+    'django_ace',
+    "djangosaml2"
 )
+
+CONSTANCE_BACKEND = 'constance.backends.database.DatabaseBackend'
+
+CONSTANCE_CONFIG = {
+    'Request_Answer': (True, 'Controls whether we activate/deactivate the request answer functionality.'),
+    'population_characteristics': (True, 'Controls whether we activate/deactivate the Population Characteristics functionality.'),
+    'documents': (True, 'Controls whether we activate/deactivate the Documents functionality.'),
+    'literature': (True, 'Controls whether we activate/deactivate the Literature functionality.'),
+    'extra_information': (True, 'Controls whether we activate/deactivate the Extra Information functionality.'),
+    'discussion': (True, 'Controls whether we activate/deactivate the discussion functionality.'),
+    'newsletter': (True, 'Controls whether we activate/deactivate the newsletter functionality.'),
+    'private_links': (True, 'Controls whether we activate/deactivate the private links functionality.'),
+    'more_like_this': (True, 'Controls whether we activate/deactivate the more like this functionality.'),
+    'geolocation': (True, 'Controls whether we activate/deactivate the geolocation functionality.'),
+    'datatable': (True, 'Controls whether we activate/deactivate the datatable functionality.'),
+}
 
 # Userena settings
 
@@ -328,7 +386,12 @@ AUTHENTICATION_BACKENDS = (
     'userena.backends.UserenaAuthenticationBackend',
     'guardian.backends.ObjectPermissionBackend',
     'django.contrib.auth.backends.ModelBackend',
+    'djangosaml2.backends.Saml2Backend',
 )
+
+LOGIN_URL = '/saml2/login/'
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Email backend settings
 # EMAIL_BACKEND = 'django.core.mail.backends.dummy.EmailBackend'
@@ -342,6 +405,88 @@ ANONYMOUS_USER_ID = -1
 AUTH_PROFILE_MODULE = 'accounts.EmifProfile'
 
 
+SAML_CONFIG = {
+    # full path to the xmlsec1 binary programm
+    'xmlsec_binary': XMLSEC_BIN,
+
+    # your entity id, usually your subdomain plus the url to the metadata view
+    'entityid': IDP_URL+'saml2/metadata',
+
+    # directory with attribute mapping
+    'attribute_map_dir': path.join(BASEDIR, 'confs/sso/attributemaps'),
+
+    # this block states what services we provide
+    'service': {
+         # we are just a lonely SP
+        'sp' : {
+            'name': 'Emif Catalogue SP',
+            'name_id_format': saml.NAMEID_FORMAT_TRANSIENT,
+            'endpoints': {
+                # url and binding to the assetion consumer service view
+                # do not change the binding or service name
+                'assertion_consumer_service': [
+                    (IDP_URL+'saml2/acs/',
+                        saml2.BINDING_HTTP_POST),
+                    ],
+                    # url and binding to the single logout service view
+                    # do not change the binding or service name
+                    'single_logout_service': [
+                        (IDP_URL+'saml2/ls/',
+                            saml2.BINDING_HTTP_REDIRECT),
+                        (IDP_URL+'saml2/ls/post',
+                            saml2.BINDING_HTTP_POST)
+                        ],
+
+
+                },
+
+           # attributes that this project need to identify a user
+          'required_attributes': ['uid'],
+
+           # attributes that may be useful to have but not required
+          'optional_attributes': ['eduPersonAffiliation'],
+          },
+      },
+
+  # where the remote metadata is stored
+  'metadata': {
+      'local': IDP_SERVICES,
+      },
+
+  # set to 1 to output debugging information
+  'debug': 1,
+
+  # certificate
+  'key_file': path.join(BASEDIR, 'confs/sso/certificates/sp.key'),  # private part
+  'cert_file': path.join(BASEDIR, 'confs/sso/certificates/sp.crt'),  # public part
+
+  # own metadata settings
+  'contact_person': [
+      {'given_name': 'José Luis',
+       'sur_name': 'Oliveira',
+       'company': 'DETI/IEETA',
+       'email_address': 'jlo@ua.pt',
+       'contact_type': 'administrative'},
+      ],
+  # you can set multilanguage information here
+  'organization': {
+      'name': [('EMIF Catalogue', 'en')],
+      'display_name': [('EMIF Catalogue', 'en')],
+      'url': [('http://bioinformatics.ua.pt/emif', 'en')],
+      },
+  'valid_for': 24,  # how long is our metadata valid
+}
+
+SAML_DJANGO_USER_MAIN_ATTRIBUTE = 'email'
+SAML_USE_NAME_ID_AS_USERNAME = False
+SAML_CREATE_UNKNOWN_USER = True
+SAML_ATTRIBUTE_MAPPING = {
+    'mail': ('email', 'username' ),
+    'eduPersonPrincipalName': ('email', 'username'),
+    'givenName': ('first_name', ),
+    'sn': ('last_name', ),
+}
+
 #Userena settings
 USERENA_ACTIVATION_REQUIRED = True
 USERENA_SIGNIN_AFTER_SIGNUP = False
@@ -350,7 +495,7 @@ USERENA_DISABLE_PROFILE_LIST = True
 USERENA_USE_MESSAGES = False
 USERENA_REDIRECT_ON_SIGNOUT = BASE_URL
 USERENA_SIGNIN_REDIRECT_BASE = BASE_URL
-USERENA_SIGNIN_REDIRECT_URL = BASE_URL + 'wherenext'
+USERENA_SIGNIN_REDIRECT_URL = BASE_URL + 'dashboard'
 USERENA_MODERATE_REGISTRATION = True                    #True - need admin approval (activation)
 USERENA_ACTIVATION_REJECTED = 'ACTIVATION_REJECTED'
 USERENA_PENDING_MODERATION = 'PENDING_MODERATION'
@@ -381,13 +526,28 @@ LOGGING = {
             'level': 'DEBUG',
             'filters': ['require_debug_false'],
             'class': 'django.utils.log.AdminEmailHandler'
-        }
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
     },
     'loggers': {
         'django.request': {
             'handlers': ['mail_admins'],
             'level': 'DEBUG',
             'propagate': True,
+        },
+        'saml2.response': {
+            'handlers': ['console'],
+            'level': os.getenv('DEBUG'),
+        },
+        'djangosaml2': {
+            'handlers': ['console'],
+            'level': os.getenv('DEBUG'),
+        },
+        "saml2.mdstore": {
+            'handlers': ['console'],
+            'level': os.getenv('DEBUG'),
         },
     }
 }
@@ -459,6 +619,12 @@ JENKINS_TASKS = (
 #Pages that do not require login
 LOGIN_EXEMPT_URLS = (
     r'^$',
+    r'^indexbeta$',
+    r'^saml2$',
+    r'^saml2/login',
+    r'^saml2/metadata',
+    r'^saml2/acs',
+    r'^saml2/ls',
     r'^about',
     r'^feedback',
     r'^faq',
@@ -471,6 +637,7 @@ LOGIN_EXEMPT_URLS = (
     r'^api/metadata',
     r'^api/search',
     r'^api-token-auth-create/',
+    r'^api/importquestionnaire$',
     r'^import-questionnaire',
     r'^delete-questionnaire',
     r'^bootstrap_ie_compatibility',
@@ -487,11 +654,13 @@ LOGIN_EXEMPT_URLS = (
 
     r'^docsmanager/docfiles/(?P<fingerprint>[^/]+)/$',
     r'^api/getfile',
+    r'^controlversion/github_event$',
 
 )
 
 #Pages that wont be logged into user history
 DONTLOG_URLS = (
+    r'^controlversion/github_event$',
     r'^fingerprintqs/(?P<runcode>[^/]+)/(?P<qsid>[0-9]+)/$',
     r'^api/(?P<anything>[^/]*)',
     r'^docsmanager/uploadfile/(?P<fingerprint_id>[^/]+)/$',
@@ -571,12 +740,12 @@ REDIRECT_DATACUSTODIAN = 'dashboard.views.dashboard'
 REDIRECT_RESEARCHER = 'dashboard.views.dashboard'
 
 
+
 # MEMCACHED
 CACHES = {
     'default' : dict(
-        BACKEND = 'johnny.backends.memcached.MemcachedCache',
-        LOCATION = ['127.0.0.1:11211'],
-        JOHNNY_CACHE = True,
+        BACKEND = 'django.core.cache.backends.memcached.MemcachedCache',
+        LOCATION = ['127.0.0.1:11211']
     )
 }
 
@@ -599,8 +768,14 @@ NEWSLETTER_DAY='friday'
 NEWSLETTER_HOUR = 3
 NEWSLETTER_MIN = 0
 
+
+
 try:
     from local_settings import *
 except:
     pass
+
+FIXTURE_DIRS = (
+    os.path.abspath('%s%s/emif/fixtures' % (PROJECT_DIR_ROOT,MIDDLE_DIR)),
+)
 
